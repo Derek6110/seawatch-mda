@@ -47,7 +47,7 @@ setupSockets(io);
 
 // --- Bootstrap data ---------------------------------------------------------
 seedStaticData();
-initAuth();
+await initAuth(); // loads accounts from Postgres (if DATABASE_URL) or local file
 const startMode = initSource();
 
 // --- Main loop: advance picture, detect, score, record, broadcast -----------

@@ -8,14 +8,8 @@
 // the route guards and role hierarchy stay the same.
 
 import crypto from 'node:crypto';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { nanoid } from 'nanoid';
-
-const here = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.join(here, '..', 'data');
-const USERS_FILE = path.join(DATA_DIR, 'users.json');
+import { initUserDb, loadUsers, upsertUser, removeUser, dbMode } from './db.js';
 
 // Role hierarchy (low -> high). Index used for "at least this rank" checks.
 export const ROLES = ['watchkeeper', 'supervisor', 'oic', 'deputy-director', 'director'];
@@ -47,28 +41,11 @@ export function can(role, action) {
   return min ? roleAtLeast(role, min) : false;
 }
 
-// --- persistence -----------------------------------------------------------
-let users = []; // {id, name, email, mocId, role, passHash, createdAt}
+// In-memory cache for fast synchronous reads; the DB (or file) is the source of
+// truth, loaded at startup and written on every change.
+let users = []; // {id, name, email, mocId, role, status, passHash, createdAt}
 const tokens = new Map(); // token -> userId
 const audit = []; // {id, ts, userId, name, role, action, detail}
-
-function load() {
-  try {
-    if (fs.existsSync(USERS_FILE)) {
-      users = JSON.parse(fs.readFileSync(USERS_FILE, 'utf-8'));
-    }
-  } catch (e) {
-    console.error('Failed to load users file:', e.message);
-  }
-}
-function save() {
-  try {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
-  } catch (e) {
-    console.error('Failed to save users file:', e.message);
-  }
-}
 
 function hashPassword(pw) {
   const salt = crypto.randomBytes(16).toString('hex');
@@ -87,8 +64,9 @@ const publicUser = (u) => u && ({
 });
 
 // --- public API ------------------------------------------------------------
-export function initAuth(seedMocId = 'moc-nhq') {
-  load();
+export async function initAuth(seedMocId = 'moc-nhq') {
+  const mode = await initUserDb();
+  users = await loadUsers();
   // Seed one demo account per role on first run so the app is usable instantly.
   if (users.length === 0) {
     const demo = [
@@ -99,20 +77,22 @@ export function initAuth(seedMocId = 'moc-nhq') {
       ['Watchkeeper Demo', 'watch@navy.gh', 'watchkeeper'],
     ];
     for (const [name, email, role] of demo) {
-      users.push({
+      const u = {
         id: nanoid(8), name, email, mocId: seedMocId, role,
         status: 'approved',
         passHash: hashPassword('seawatch'), createdAt: Date.now(),
-      });
+      };
+      users.push(u);
+      await upsertUser(u, users);
     }
-    save();
     console.log('  Seeded demo accounts (password: "seawatch") — e.g. director@navy.gh');
   }
+  console.log(`  Accounts store: ${mode === 'pg' ? 'PostgreSQL (persistent)' : 'local file'} — ${users.length} users`);
 }
 
 // Public self-service signup — creates a PENDING account that an administrator
 // must approve before it can sign in. Does NOT return a token.
-export function register({ name, email, password, role, mocId }) {
+export async function register({ name, email, password, role, mocId }) {
   if (!name || !email || !password || !role) throw new Error('name, email, password and role are required');
   if (!ROLES.includes(role)) throw new Error('invalid role');
   if (users.find((u) => u.email.toLowerCase() === email.toLowerCase())) throw new Error('email already registered');
@@ -122,7 +102,7 @@ export function register({ name, email, password, role, mocId }) {
     passHash: hashPassword(password), createdAt: Date.now(),
   };
   users.push(user);
-  save();
+  await upsertUser(user, users);
   logAudit(null, 'account.register', `New signup ${email} (${ROLE_LABELS[role]}) — pending approval`);
   return { pending: true, message: 'Account created and pending administrator approval.' };
 }
@@ -136,7 +116,7 @@ export function login({ email, password }) {
 }
 
 // --- administration (director) --------------------------------------------
-export function adminCreateUser({ name, email, password, role, mocId }, admin) {
+export async function adminCreateUser({ name, email, password, role, mocId }, admin) {
   if (!name || !email || !password || !role) throw new Error('name, email, password and role are required');
   if (!ROLES.includes(role)) throw new Error('invalid role');
   if (users.find((u) => u.email.toLowerCase() === email.toLowerCase())) throw new Error('email already registered');
@@ -145,12 +125,12 @@ export function adminCreateUser({ name, email, password, role, mocId }, admin) {
     status: 'approved', passHash: hashPassword(password), createdAt: Date.now(),
   };
   users.push(user);
-  save();
+  await upsertUser(user, users);
   logAudit(admin, 'admin.user.create', `Created ${email} (${ROLE_LABELS[role]})`);
   return publicUser(user);
 }
 
-export function adminUpdateUser(id, patch, admin) {
+export async function adminUpdateUser(id, patch, admin) {
   const u = users.find((x) => x.id === id);
   if (!u) throw new Error('user not found');
   if (patch.name) u.name = patch.name;
@@ -158,24 +138,24 @@ export function adminUpdateUser(id, patch, admin) {
   if (patch.mocId) u.mocId = patch.mocId;
   if (patch.status) u.status = patch.status; // approved | pending | disabled
   if (patch.password) u.passHash = hashPassword(patch.password);
-  save();
+  await upsertUser(u, users);
   logAudit(admin, 'admin.user.update', `Updated ${u.email} → ${JSON.stringify(patch.password ? { ...patch, password: '***' } : patch)}`);
   return publicUser(u);
 }
 
-export function adminDeleteUser(id, admin) {
+export async function adminDeleteUser(id, admin) {
   const i = users.findIndex((x) => x.id === id);
   if (i === -1) throw new Error('user not found');
   if (users[i].id === admin?.id) throw new Error('cannot delete your own account');
   const [removed] = users.splice(i, 1);
   // Invalidate any active sessions for the removed user.
   for (const [tok, uid] of tokens) if (uid === removed.id) tokens.delete(tok);
-  save();
+  await removeUser(removed.id, users);
   logAudit(admin, 'admin.user.delete', `Deleted ${removed.email}`);
   return { ok: true };
 }
 
-export function adminApproveUser(id, admin) {
+export async function adminApproveUser(id, admin) {
   return adminUpdateUser(id, { status: 'approved' }, admin);
 }
 

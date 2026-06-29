@@ -8,9 +8,9 @@ import {
 
 const router = Router();
 
-router.post('/auth/register', (req, res) => {
+router.post('/auth/register', async (req, res) => {
   try {
-    const result = register(req.body || {});
+    const result = await register(req.body || {});
     res.status(201).json(result);
   } catch (e) {
     res.status(400).json({ error: e.message });
@@ -49,23 +49,23 @@ router.get('/users', requireAuth, requireCap('manageUsers'), (_req, res) => {
   res.json(listUsers());
 });
 
-router.post('/users', requireAuth, requireCap('manageUsers'), (req, res) => {
-  try { res.status(201).json(adminCreateUser(req.body || {}, req.user)); }
+router.post('/users', requireAuth, requireCap('manageUsers'), async (req, res) => {
+  try { res.status(201).json(await adminCreateUser(req.body || {}, req.user)); }
   catch (e) { res.status(400).json({ error: e.message }); }
 });
 
-router.patch('/users/:id', requireAuth, requireCap('manageUsers'), (req, res) => {
-  try { res.json(adminUpdateUser(req.params.id, req.body || {}, req.user)); }
+router.patch('/users/:id', requireAuth, requireCap('manageUsers'), async (req, res) => {
+  try { res.json(await adminUpdateUser(req.params.id, req.body || {}, req.user)); }
   catch (e) { res.status(400).json({ error: e.message }); }
 });
 
-router.post('/users/:id/approve', requireAuth, requireCap('manageUsers'), (req, res) => {
-  try { res.json(adminApproveUser(req.params.id, req.user)); }
+router.post('/users/:id/approve', requireAuth, requireCap('manageUsers'), async (req, res) => {
+  try { res.json(await adminApproveUser(req.params.id, req.user)); }
   catch (e) { res.status(400).json({ error: e.message }); }
 });
 
-router.delete('/users/:id', requireAuth, requireCap('manageUsers'), (req, res) => {
-  try { res.json(adminDeleteUser(req.params.id, req.user)); }
+router.delete('/users/:id', requireAuth, requireCap('manageUsers'), async (req, res) => {
+  try { res.json(await adminDeleteUser(req.params.id, req.user)); }
   catch (e) { res.status(400).json({ error: e.message }); }
 });
 

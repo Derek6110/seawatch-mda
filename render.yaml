@@ -16,3 +16,8 @@ services:
       # Set your AISStream key in the Render dashboard to enable the live feed.
       - key: AISSTREAM_API_KEY
         sync: false
+      # Set a Postgres connection string (Neon/Render/Supabase) so user accounts
+      # persist across restarts & redeploys. If unset, accounts use ephemeral
+      # file storage (lost on redeploy). See DEPLOY.md.
+      - key: DATABASE_URL
+        sync: false

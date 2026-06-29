@@ -18,9 +18,22 @@ It's been verified locally in this single-service mode.
 
 Notes on the free plan:
 - The service sleeps after ~15 min idle and cold-starts (~50s) on the next visit.
-- Filesystem is ephemeral: the seeded demo accounts always come back, but
-  **self-service signups are lost on restart/redeploy**. For durable accounts add
-  a free Postgres (ask and I'll wire `auth.js` to it).
+
+### Persistent accounts (Postgres) — recommended before circulating
+Accounts persist when `DATABASE_URL` is set; otherwise they use ephemeral file
+storage and self-service signups are lost on redeploy. The app auto-creates its
+`users` table on first boot. Use a free **non-expiring** Postgres:
+
+1. Create a free project at **https://neon.tech** (no card; doesn't expire).
+2. Copy its connection string (looks like
+   `postgresql://user:pass@ep-xxx.region.aws.neon.tech/neondb?sslmode=require`).
+3. In your Render service → **Environment** → add `DATABASE_URL` = that string → Save.
+4. Render redeploys; on boot you'll see `Accounts store: PostgreSQL (persistent)`.
+   The 5 demo accounts are seeded once; from then on, signups/approvals survive
+   every redeploy.
+
+> Render's own free Postgres works too (New ► Postgres), but it expires after ~30
+> days; Neon's free tier is persistent, so it's the better fit here.
 
 ## Option B — Any Docker host (Fly.io, Railway, Cloud Run)
 A `Dockerfile` is included. Example (Fly.io):
