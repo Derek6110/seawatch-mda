@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { FileWarning, Plus, ClipboardList } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { FileWarning, Plus, ClipboardList, MessageSquare, Users } from 'lucide-react';
 import { useStore } from '../store.js';
 import { timeAgo } from '../lib/format.js';
 
@@ -21,24 +21,43 @@ const STATUS_NEXT = { open: 'investigating', investigating: 'resolved', resolved
 
 export default function IncidentPanel() {
   const { incidents, tasks, createIncident, updateIncident, updateTask,
-    selectedMmsi, vesselsByMmsi, mocs, can } = useStore();
+    selectedMmsi, vesselsByMmsi, mocs, currentMoc, can, selectIncident } = useStore();
   const canUpdate = can('updateIncident');
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ title: '', category: 'suspicious', severity: 'medium', description: '' });
+  const [shareAll, setShareAll] = useState(true);
+  const [shareSet, setShareSet] = useState(() => new Set());
 
   const sel = selectedMmsi ? vesselsByMmsi[selectedMmsi] : null;
   const mocCode = (id) => mocs.find((m) => m.id === id)?.code || '—';
 
+  // Collaborators = every command/agency except the account holder's own MOC.
+  const collaborators = useMemo(
+    () => mocs.filter((m) => m.id !== currentMoc?.id),
+    [mocs, currentMoc]
+  );
+
+  // Only show incidents shared with this MOC (or with everyone, or reported by us).
+  const visibleIncidents = useMemo(
+    () => incidents.filter((inc) =>
+      !inc.sharedWith || inc.sharedWith.includes('all') ||
+      inc.mocId === currentMoc?.id || inc.sharedWith.includes(currentMoc?.id)),
+    [incidents, currentMoc]
+  );
+
+  const toggleShare = (id) => setShareSet((prev) => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+
   const submit = (e) => {
     e.preventDefault();
     if (!form.title) return;
-    createIncident({
-      ...form,
-      mmsi: sel?.mmsi || null,
-      lat: sel?.lat, lon: sel?.lon,
-    });
+    const sharedWith = shareAll || shareSet.size === 0 ? ['all'] : Array.from(shareSet);
+    createIncident({ ...form, sharedWith, mmsi: sel?.mmsi || null, lat: sel?.lat, lon: sel?.lon });
     setForm({ title: '', category: 'suspicious', severity: 'medium', description: '' });
-    setShowForm(false);
+    setShareSet(new Set()); setShareAll(true); setShowForm(false);
   };
 
   return (
@@ -70,13 +89,35 @@ export default function IncidentPanel() {
           <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
             placeholder="Description / position / action taken…" rows={2}
             className="w-full bg-navy-900 border border-navy-700 rounded px-2 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-ghana-gold" />
+
+          {/* Share with collaborators (the account holder's own MOC is excluded) */}
+          <div className="space-y-1">
+            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-slate-400">
+              <Users size={11} /> Share with
+            </div>
+            <label className="flex items-center gap-2 text-xs text-slate-200 cursor-pointer">
+              <input type="checkbox" checked={shareAll} onChange={(e) => setShareAll(e.target.checked)} className="accent-ghana-gold" />
+              All institutions
+            </label>
+            {!shareAll && (
+              <div className="grid grid-cols-2 gap-x-2 gap-y-1 max-h-28 overflow-y-auto pl-1">
+                {collaborators.map((m) => (
+                  <label key={m.id} className="flex items-center gap-1.5 text-[11px] text-slate-300 cursor-pointer">
+                    <input type="checkbox" checked={shareSet.has(m.id)} onChange={() => toggleShare(m.id)} className="accent-ghana-gold" />
+                    <span className="truncate" title={m.name}>{m.code}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
           {sel && (
             <div className="text-[10px] text-slate-400">
               Linked contact: <span className="text-ghana-gold">{sel.name}</span> (MMSI {sel.mmsi})
             </div>
           )}
           <button type="submit" className="w-full py-1.5 rounded bg-ghana-green text-white text-sm font-semibold hover:brightness-110">
-            Submit & share to all MOCs
+            Submit &amp; share
           </button>
         </form>
       )}
@@ -120,33 +161,45 @@ export default function IncidentPanel() {
         <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-slate-400 px-1 pt-1">
           <FileWarning size={12} /> Shared Incidents
         </div>
-        {incidents.length === 0 && (
-          <div className="text-center text-slate-500 text-sm py-6">No incidents reported.</div>
+        {visibleIncidents.length === 0 && (
+          <div className="text-center text-slate-500 text-sm py-6">No incidents shared with your institution.</div>
         )}
-        {incidents.map((inc) => (
-          <div key={inc.id} className="rounded border border-navy-700 bg-navy-850 p-2.5 space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full" style={{ background: CAT_COLOR[inc.category] }} />
-              <span className="text-sm text-white font-medium flex-1 truncate">{inc.title}</span>
-              <span className="text-[9px] font-mono text-slate-500">{inc.id}</span>
-            </div>
-            {inc.description && <div className="text-xs text-slate-400 leading-snug">{inc.description}</div>}
-            <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono">
-              <span className="text-ghana-gold">{mocCode(inc.mocId)}</span>
-              <span>{inc.reportedBy}</span>
-              <span>·</span>
-              <span>{timeAgo(inc.ts)}</span>
-              {canUpdate ? (
-                <button onClick={() => updateIncident(inc.id, { status: STATUS_NEXT[inc.status] })}
-                  className="ml-auto px-1.5 rounded bg-navy-700 hover:bg-navy-600 text-white uppercase">
-                  {inc.status}
-                </button>
-              ) : (
-                <span className="ml-auto px-1.5 rounded bg-navy-800 text-slate-300 uppercase">{inc.status}</span>
-              )}
-            </div>
-          </div>
-        ))}
+        {visibleIncidents.map((inc) => {
+          const shared = inc.sharedWith?.includes('all') ? ['ALL'] : (inc.sharedWith || []).map(mocCode);
+          return (
+            <button key={inc.id} onClick={() => selectIncident(inc.id)}
+              className="w-full text-left rounded border border-navy-700 bg-navy-850 hover:border-ghana-gold p-2.5 space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: CAT_COLOR[inc.category] }} />
+                <span className="text-sm text-white font-medium flex-1 truncate">{inc.title}</span>
+                <span className="text-[9px] font-mono text-slate-500">{inc.id}</span>
+              </div>
+              {inc.description && <div className="text-xs text-slate-400 leading-snug line-clamp-2">{inc.description}</div>}
+              <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono flex-wrap">
+                <span className="text-ghana-gold">{mocCode(inc.mocId)}</span>
+                <span className="flex items-center gap-1 text-slate-400">
+                  <Users size={10} /> {shared.join(', ')}
+                </span>
+                {inc.comments?.length > 0 && (
+                  <span className="flex items-center gap-0.5 text-cyan-300"><MessageSquare size={10} /> {inc.comments.length}</span>
+                )}
+                {inc.reactions?.length > 0 && <span>· {inc.reactions.length} ⚑</span>}
+                <span className="ml-auto flex items-center gap-2">
+                  <span>{timeAgo(inc.ts)}</span>
+                  {canUpdate ? (
+                    <span role="button" tabIndex={0}
+                      onClick={(e) => { e.stopPropagation(); updateIncident(inc.id, { status: STATUS_NEXT[inc.status] }); }}
+                      className="px-1.5 rounded bg-navy-700 hover:bg-navy-600 text-white uppercase cursor-pointer">
+                      {inc.status}
+                    </span>
+                  ) : (
+                    <span className="px-1.5 rounded bg-navy-800 text-slate-300 uppercase">{inc.status}</span>
+                  )}
+                </span>
+              </div>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

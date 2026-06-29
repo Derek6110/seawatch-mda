@@ -13,6 +13,7 @@ import AlertsPanel from './components/AlertsPanel.jsx';
 import DarkVesselPanel from './components/DarkVesselPanel.jsx';
 import CollaborationPanel from './components/CollaborationPanel.jsx';
 import IncidentPanel from './components/IncidentPanel.jsx';
+import IncidentThread from './components/IncidentThread.jsx';
 import AuditPanel from './components/AuditPanel.jsx';
 import AdminDashboard from './components/AdminDashboard.jsx';
 
@@ -57,7 +58,7 @@ function RightPanel() {
 }
 
 export default function App() {
-  const { user, authChecked, bootstrapAuth, connected, vessels, adminOpen } = useStore();
+  const { user, authChecked, bootstrapAuth, connected, vessels, adminOpen, selectedIncidentId } = useStore();
 
   useEffect(() => { bootstrapAuth(); }, [bootstrapAuth]);
 
@@ -100,6 +101,7 @@ export default function App() {
         <ErrorBoundary label="Panel"><RightPanel /></ErrorBoundary>
       </div>
       {adminOpen && <ErrorBoundary label="Admin"><AdminDashboard /></ErrorBoundary>}
+      {selectedIncidentId && <ErrorBoundary label="Incident"><IncidentThread /></ErrorBoundary>}
     </div>
   );
 }

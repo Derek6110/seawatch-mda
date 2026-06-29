@@ -46,6 +46,7 @@ export const useStore = create((set, get) => ({
   followMmsi: null,
   basemap: 'dark', // dark | satellite | ocean
   adminOpen: false,
+  selectedIncidentId: null, // open incident discussion thread
 
   // --- replay ---
   replayMode: false,
@@ -257,6 +258,21 @@ export const useStore = create((set, get) => ({
     const { currentMoc } = get();
     await api.createIncident({ ...body, mocId: currentMoc?.id });
     get().refreshAudit();
+  },
+  selectIncident(id) { set({ selectedIncidentId: id }); },
+  async commentIncident(id, text) {
+    if (!text.trim()) return;
+    const inc = await api.commentIncident(id, text.trim());
+    set((s) => ({ incidents: s.incidents.map((i) => (i.id === inc.id ? inc : i)) }));
+  },
+  async reactIncident(id, emoji) {
+    const inc = await api.reactIncident(id, emoji);
+    set((s) => ({ incidents: s.incidents.map((i) => (i.id === inc.id ? inc : i)) }));
+  },
+  // Collaborator institutions = all MOCs except the account holder's own MOC.
+  collaborators() {
+    const { mocs, currentMoc } = get();
+    return mocs.filter((m) => m.id !== currentMoc?.id);
   },
   async createTask(body) {
     const { currentMoc } = get();

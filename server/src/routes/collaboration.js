@@ -12,8 +12,15 @@ const router = Router();
 // --- Incidents (shared situational reports) --------------------------------
 router.get('/incidents', (_req, res) => res.json(store.incidents));
 
+// An incident is visible/interactive to: the originating MOC, anyone if shared
+// with 'all', or the specific MOCs it was shared with.
+function canAccessIncident(inc, user) {
+  if (!inc.sharedWith || inc.sharedWith.includes('all')) return true;
+  return inc.mocId === user.mocId || inc.sharedWith.includes(user.mocId);
+}
+
 router.post('/incidents', requireAuth, requireCap('createIncident'), (req, res) => {
-  const { title, category, severity, lat, lon, mmsi, description, reportedBy, mocId } = req.body || {};
+  const { title, category, severity, lat, lon, mmsi, description, sharedWith, mocId } = req.body || {};
   if (!title || !category) return res.status(400).json({ error: 'title and category required' });
   const incident = {
     id: nextIncidentId(),
@@ -26,15 +33,52 @@ router.post('/incidents', requireAuth, requireCap('createIncident'), (req, res) 
     reportedBy: req.user.name,
     reportedRole: req.user.role,
     mocId: mocId || req.user.mocId || null,
-    sharedWith: ['all'],
+    // MOC ids this incident is shared with (['all'] = every command/agency).
+    sharedWith: Array.isArray(sharedWith) && sharedWith.length ? sharedWith : ['all'],
     ts: Date.now(),
     updates: [],
+    comments: [], // running discussion thread between the sharing institutions
+    reactions: [], // {mocId, author, emoji, ts}
   };
   store.incidents.unshift(incident);
   saveIncident(incident);
-  logAudit(req.user, 'incident.create', `${incident.id} — ${incident.title} (${incident.category})`);
+  logAudit(req.user, 'incident.create', `${incident.id} — ${incident.title} (shared: ${incident.sharedWith.join(', ')})`);
   req.app.get('io')?.emit('incident:new', incident);
   res.status(201).json(incident);
+});
+
+// Add a comment to an incident's discussion thread (chat-style).
+router.post('/incidents/:id/comments', requireAuth, (req, res) => {
+  const inc = store.incidents.find((i) => i.id === req.params.id);
+  if (!inc) return res.status(404).json({ error: 'incident not found' });
+  if (!canAccessIncident(inc, req.user)) return res.status(403).json({ error: 'not shared with your institution' });
+  const text = (req.body?.text || '').trim();
+  if (!text) return res.status(400).json({ error: 'text required' });
+  if (!inc.comments) inc.comments = [];
+  const comment = {
+    id: nanoid(6), mocId: req.user.mocId, author: req.user.name,
+    role: req.user.role, text, ts: Date.now(),
+  };
+  inc.comments.push(comment);
+  saveIncident(inc);
+  req.app.get('io')?.emit('incident:update', inc);
+  res.status(201).json(inc);
+});
+
+// Toggle a reaction (emoji) on an incident.
+router.post('/incidents/:id/reactions', requireAuth, (req, res) => {
+  const inc = store.incidents.find((i) => i.id === req.params.id);
+  if (!inc) return res.status(404).json({ error: 'incident not found' });
+  if (!canAccessIncident(inc, req.user)) return res.status(403).json({ error: 'not shared with your institution' });
+  const emoji = req.body?.emoji;
+  if (!emoji) return res.status(400).json({ error: 'emoji required' });
+  if (!inc.reactions) inc.reactions = [];
+  const i = inc.reactions.findIndex((r) => r.author === req.user.name && r.mocId === req.user.mocId && r.emoji === emoji);
+  if (i >= 0) inc.reactions.splice(i, 1);
+  else inc.reactions.push({ mocId: req.user.mocId, author: req.user.name, emoji, ts: Date.now() });
+  saveIncident(inc);
+  req.app.get('io')?.emit('incident:update', inc);
+  res.json(inc);
 });
 
 router.patch('/incidents/:id', requireAuth, requireCap('updateIncident'), (req, res) => {
