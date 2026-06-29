@@ -18,7 +18,8 @@ import { ageLiveVessels } from './aisstream.js';
 import { initSource, getMode, simActive, liveActive } from './source.js';
 import { setupSockets } from './socket.js';
 import { initAuth } from './auth.js';
-import { store, listVessels, pushHistory } from './store.js';
+import { loadIncidents, loadTasks } from './db.js';
+import { store, listVessels, pushHistory, syncSequences } from './store.js';
 import api from './routes/index.js';
 
 const app = express();
@@ -48,6 +49,11 @@ setupSockets(io);
 // --- Bootstrap data ---------------------------------------------------------
 seedStaticData();
 await initAuth(); // loads accounts from Postgres (if DATABASE_URL) or local file
+// Restore persisted incidents & taskings (Postgres mode) and resume ID numbering.
+const [savedIncidents, savedTasks] = await Promise.all([loadIncidents(), loadTasks()]);
+if (savedIncidents.length) store.incidents = savedIncidents;
+if (savedTasks.length) store.tasks = savedTasks;
+syncSequences();
 const startMode = initSource();
 
 // --- Main loop: advance picture, detect, score, record, broadcast -----------

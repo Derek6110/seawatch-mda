@@ -30,6 +30,14 @@ export const nextIncidentId = () =>
 let taskSeq = 1;
 export const nextTaskId = () => `TSK-${String(taskSeq++).padStart(4, '0')}`;
 
+// After restoring persisted incidents/tasks, advance the ID counters past the
+// highest existing number so new IDs don't collide with restored ones.
+export function syncSequences() {
+  const lastNum = (arr) => Math.max(0, ...arr.map((x) => parseInt(String(x.id).split('-').pop(), 10) || 0));
+  incidentSeq = lastNum(store.incidents) + 1;
+  taskSeq = lastNum(store.tasks) + 1;
+}
+
 export function listVessels() {
   return Array.from(store.vessels.values());
 }

@@ -5,6 +5,7 @@ import { Router } from 'express';
 import { store, nextIncidentId, nextTaskId } from '../store.js';
 import { nanoid } from 'nanoid';
 import { requireAuth, requireCap, logAudit } from '../auth.js';
+import { saveIncident, saveTask } from '../db.js';
 
 const router = Router();
 
@@ -30,6 +31,7 @@ router.post('/incidents', requireAuth, requireCap('createIncident'), (req, res) 
     updates: [],
   };
   store.incidents.unshift(incident);
+  saveIncident(incident);
   logAudit(req.user, 'incident.create', `${incident.id} — ${incident.title} (${incident.category})`);
   req.app.get('io')?.emit('incident:new', incident);
   res.status(201).json(incident);
@@ -41,6 +43,8 @@ router.patch('/incidents/:id', requireAuth, requireCap('updateIncident'), (req, 
   const { status, note, author } = req.body || {};
   if (status) inc.status = status;
   if (note) inc.updates.push({ id: nanoid(6), note, author: author || 'operator', ts: Date.now() });
+  saveIncident(inc);
+  logAudit(req.user, 'incident.update', `${inc.id} — status ${inc.status}`);
   req.app.get('io')?.emit('incident:update', inc);
   res.json(inc);
 });
@@ -71,6 +75,7 @@ router.post('/tasks', requireAuth, requireCap('createTask'), (req, res) => {
     ts: Date.now(),
   };
   store.tasks.unshift(task);
+  saveTask(task);
   logAudit(req.user, 'task.create', `${task.id} — ${task.title} (${task.priority})`);
   req.app.get('io')?.emit('task:new', task);
   res.status(201).json(task);
@@ -80,6 +85,7 @@ router.patch('/tasks/:id', requireAuth, requireCap('updateTask'), (req, res) => 
   const t = store.tasks.find((x) => x.id === req.params.id);
   if (!t) return res.status(404).json({ error: 'task not found' });
   if (req.body?.status) t.status = req.body.status;
+  saveTask(t);
   req.app.get('io')?.emit('task:update', t);
   res.json(t);
 });

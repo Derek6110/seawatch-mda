@@ -9,7 +9,7 @@
 
 import crypto from 'node:crypto';
 import { nanoid } from 'nanoid';
-import { initUserDb, loadUsers, upsertUser, removeUser, dbMode } from './db.js';
+import { initUserDb, loadUsers, upsertUser, removeUser, loadAudit, saveAudit } from './db.js';
 
 // Role hierarchy (low -> high). Index used for "at least this rank" checks.
 export const ROLES = ['watchkeeper', 'supervisor', 'oic', 'deputy-director', 'director'];
@@ -87,6 +87,9 @@ export async function initAuth(seedMocId = 'moc-nhq') {
     }
     console.log('  Seeded demo accounts (password: "seawatch") — e.g. director@navy.gh');
   }
+  // Restore the audit trail (Postgres only; in-memory otherwise).
+  const pastAudit = await loadAudit();
+  if (pastAudit.length) audit.push(...pastAudit);
   console.log(`  Accounts store: ${mode === 'pg' ? 'PostgreSQL (persistent)' : 'local file'} — ${users.length} users`);
 }
 
@@ -210,6 +213,7 @@ export function logAudit(user, action, detail) {
   };
   audit.unshift(entry);
   if (audit.length > 1000) audit.pop();
+  saveAudit(entry); // persisted in Postgres mode; no-op for file mode
   return entry;
 }
 export function getAudit(limit = 200) {

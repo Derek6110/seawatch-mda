@@ -45,6 +45,12 @@ export async function initUserDb() {
         created_at BIGINT NOT NULL
       );
     `);
+    // Incidents, taskings and the audit log are stored as JSON documents so the
+    // full record (including nested updates) persists without a rigid schema.
+    for (const t of ['incidents', 'tasks', 'audit']) {
+      await pool.query(`CREATE TABLE IF NOT EXISTS ${t} (
+        id TEXT PRIMARY KEY, ts BIGINT NOT NULL, data JSONB NOT NULL);`);
+    }
     mode = 'pg';
   } else {
     mode = 'file';
@@ -96,3 +102,28 @@ function writeFile(all) {
     console.error('Failed to save users file:', e.message);
   }
 }
+
+// --- JSON-document persistence for incidents / tasks / audit ---------------
+// Only active in Postgres mode; in file mode these are in-memory only (the live
+// operating data is what matters in production, where DATABASE_URL is set).
+async function loadDocs(table, limit) {
+  if (mode !== 'pg') return [];
+  const lim = limit ? ` LIMIT ${Number(limit)}` : '';
+  const r = await pool.query(`SELECT data FROM ${table} ORDER BY ts DESC${lim}`);
+  return r.rows.map((x) => x.data);
+}
+async function saveDoc(table, doc) {
+  if (mode !== 'pg' || !doc?.id) return;
+  await pool.query(
+    `INSERT INTO ${table} (id, ts, data) VALUES ($1,$2,$3)
+     ON CONFLICT (id) DO UPDATE SET data=$3, ts=$2`,
+    [String(doc.id), Number(doc.ts) || Date.now(), doc]
+  );
+}
+
+export const loadIncidents = () => loadDocs('incidents');
+export const saveIncident = (i) => saveDoc('incidents', i).catch((e) => console.error('saveIncident:', e.message));
+export const loadTasks = () => loadDocs('tasks');
+export const saveTask = (t) => saveDoc('tasks', t).catch((e) => console.error('saveTask:', e.message));
+export const loadAudit = (limit = 1000) => loadDocs('audit', limit);
+export const saveAudit = (a) => saveDoc('audit', a).catch((e) => console.error('saveAudit:', e.message));
