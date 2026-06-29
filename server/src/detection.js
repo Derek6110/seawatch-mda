@@ -12,6 +12,15 @@ import { ZONES } from './seed.js';
 
 const D = config.detection;
 
+// Human-friendly gap duration: "6h 12m", "45m", "1h".
+function fmtGap(min) {
+  const m = Math.round(min);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  const rem = m % 60;
+  return rem ? `${h}h ${rem}m` : `${h}h`;
+}
+
 // Avoid spamming duplicate alerts: remember the last alert signature per vessel.
 const lastSig = new Map();
 
@@ -50,19 +59,20 @@ export function runDetection(io) {
     v.flags = [];
     if (v.isNavy) continue;
 
-    // Rule 1 — AIS gap: was at sea, no report beyond threshold.
+    // Rule 1 — AIS gap: at sea with no AIS report for more than the threshold
+    // (default 6 hours). The longer the silence, the higher the severity.
     const gapMin = (now - v.lastReport) / 60000;
     if (!v.aisOn && gapMin >= D.aisGapMinutes) {
       v.flags.push('ais-gap');
       v.classification = 'suspect';
       const a = emit(io, {
         type: 'ais-gap',
-        severity: gapMin > 60 ? 'high' : 'medium',
+        severity: gapMin >= 720 ? 'high' : 'medium', // 12h+ => high
         mmsi: v.mmsi,
         vesselName: v.name,
         lat: v.lat, lon: v.lon,
         title: 'AIS signal lost (going dark)',
-        detail: `${v.name} (${v.flag}) stopped transmitting AIS ${Math.round(gapMin)} min ago while at sea.`,
+        detail: `${v.name} (${v.flag}) has not transmitted AIS for ${fmtGap(gapMin)} while at sea (threshold ${fmtGap(D.aisGapMinutes)}).`,
       });
       if (a) newAlerts.push(a);
     }

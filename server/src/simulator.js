@@ -122,8 +122,10 @@ function goDark(v) {
   if (!v) return;
   v.aisOn = false;
   v.classification = 'suspect';
-  // backdate last report so it immediately reads as an AIS gap
-  v.lastReport = Date.now() - (config.detection.aisGapMinutes + 5) * 60 * 1000;
+  // Backdate the last report past the 6h threshold (by a random extra amount) so
+  // simulated dark contacts read as realistic 6–13h gaps immediately.
+  const extra = 5 + Math.floor(Math.random() * 420); // up to +7h
+  v.lastReport = Date.now() - (config.detection.aisGapMinutes + extra) * 60 * 1000;
 }
 
 function startLoiter(v) {

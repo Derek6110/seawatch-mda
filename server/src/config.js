@@ -48,7 +48,9 @@ export const config = {
 
   // Dark-vessel detection thresholds.
   detection: {
-    aisGapMinutes: 18,
+    // Flag a vessel as suspected (gone dark) once it has not transmitted AIS for
+    // more than 6 hours while at sea. Override with AIS_GAP_MINUTES.
+    aisGapMinutes: Number(process.env.AIS_GAP_MINUTES) || 360,
     loiterSpeedKn: 1.2,
     loiterMinutes: 25,
     stsProximityNm: 0.6,
