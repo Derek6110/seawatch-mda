@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { store, listVessels } from '../store.js';
 import { config } from '../config.js';
 import { isLiveConnected } from '../aisstream.js';
+import { dbMode } from '../db.js';
 
 const router = Router();
 
@@ -41,6 +42,8 @@ router.get('/stats', (_req, res) => {
         (config.liveBbox.minLon + config.liveBbox.maxLon) / 2,
       ],
     },
+    // Persistence backend: 'pg' (durable Postgres) or 'file' (ephemeral).
+    accountsStore: dbMode(),
     updatedAt: Date.now(),
   });
 });
