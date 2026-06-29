@@ -1,0 +1,93 @@
+// Generates a printable Maritime Situation Report (SITREP) in a new window.
+// Pulls the current picture from the store and lays it out for print/PDF.
+
+import { ALERT_LABELS } from './colors.js';
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
+export function generateSitrep(state) {
+  const { stats, vessels, alerts, incidents, currentMoc, user } = state;
+  const now = new Date();
+  const dtg = now.toUTCString();
+  const dark = vessels.filter((v) => v.flags && v.flags.length)
+    .sort((a, b) => (b.risk || 0) - (a.risk || 0));
+  const openAlerts = alerts.filter((a) => a.status === 'open');
+  const openIncidents = incidents.filter((i) => i.status !== 'resolved');
+
+  const row = (cells) => `<tr>${cells.map((c) => `<td>${c}</td>`).join('')}</tr>`;
+
+  const html = `<!doctype html><html><head><meta charset="utf-8">
+  <title>SeaWatch SITREP ${esc(now.toISOString().slice(0, 16))}</title>
+  <style>
+    *{box-sizing:border-box} body{font-family:Georgia,'Times New Roman',serif;color:#111;margin:32px;}
+    h1{font-size:20px;margin:0;letter-spacing:2px} h2{font-size:13px;text-transform:uppercase;letter-spacing:1px;border-bottom:2px solid #006b3f;padding-bottom:3px;margin:22px 0 8px}
+    .hdr{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #111;padding-bottom:10px}
+    .star{color:#fcd116;-webkit-text-stroke:1px #111} .sub{font-size:11px;color:#444;letter-spacing:1px}
+    .meta{font-size:11px;text-align:right;color:#333;line-height:1.6}
+    .grid{display:flex;gap:10px;margin-top:10px} .card{flex:1;border:1px solid #999;border-radius:6px;padding:8px;text-align:center}
+    .card .n{font-size:24px;font-weight:bold} .card .l{font-size:10px;text-transform:uppercase;color:#555}
+    table{width:100%;border-collapse:collapse;font-size:11px} td,th{border:1px solid #bbb;padding:4px 6px;text-align:left}
+    th{background:#eee;text-transform:uppercase;font-size:10px;letter-spacing:.5px}
+    .crit{color:#b30000;font-weight:bold} .foot{margin-top:26px;font-size:10px;color:#666;border-top:1px solid #ccc;padding-top:8px}
+    .class{background:#006b3f;color:#fff;text-align:center;font-weight:bold;letter-spacing:3px;padding:4px;font-size:12px}
+    @media print{body{margin:12mm}}
+  </style></head><body>
+  <div class="class">RESTRICTED — DEMONSTRATION</div>
+  <div class="hdr">
+    <div><h1>★ SEAWATCH MARITIME SITREP</h1><div class="sub">GHANA NAVY · MARITIME DOMAIN AWARENESS</div></div>
+    <div class="meta">
+      <div><b>DTG:</b> ${esc(dtg)}</div>
+      <div><b>Originator:</b> ${esc(currentMoc?.name || '—')}</div>
+      <div><b>Prepared by:</b> ${esc(user?.name || '—')} (${esc(user?.role || '')})</div>
+      <div><b>Data source:</b> ${esc((stats?.source?.live ? 'LIVE AIS' : 'SIMULATION'))}</div>
+    </div>
+  </div>
+
+  <h2>1. Situation Summary</h2>
+  <div class="grid">
+    <div class="card"><div class="n">${stats?.totalVessels ?? '—'}</div><div class="l">Total Contacts</div></div>
+    <div class="card"><div class="n" style="color:#b30000">${stats?.darkVessels ?? '—'}</div><div class="l">Dark / Flagged</div></div>
+    <div class="card"><div class="n" style="color:#c47f00">${openAlerts.length}</div><div class="l">Open Alerts</div></div>
+    <div class="card"><div class="n">${openIncidents.length}</div><div class="l">Open Incidents</div></div>
+    <div class="card"><div class="n" style="color:#006b3f">${stats?.friendlyUnits ?? '—'}</div><div class="l">Own Units</div></div>
+  </div>
+
+  <h2>2. Dark / High-Risk Contacts</h2>
+  <table><thead><tr><th>Vessel</th><th>MMSI</th><th>Flag</th><th>Risk</th><th>Indicators</th><th>Position</th></tr></thead><tbody>
+  ${dark.slice(0, 20).map((v) => row([
+    esc(v.name), v.mmsi, esc(v.flag || '—'),
+    `<span class="${v.risk >= 70 ? 'crit' : ''}">${v.risk ?? '—'} (${esc(v.riskLevel || '')})</span>`,
+    (v.flags || []).map((f) => esc(ALERT_LABELS[f] || f)).join(', '),
+    `${v.lat?.toFixed(3)}, ${v.lon?.toFixed(3)}`,
+  ])).join('') || row(['<i>No dark contacts</i>', '', '', '', '', ''])}
+  </tbody></table>
+
+  <h2>3. Open Alerts</h2>
+  <table><thead><tr><th>ID</th><th>Severity</th><th>Type</th><th>Detail</th></tr></thead><tbody>
+  ${openAlerts.slice(0, 25).map((a) => row([
+    esc(a.id), `<span class="${a.severity === 'high' ? 'crit' : ''}">${esc(a.severity)}</span>`,
+    esc(ALERT_LABELS[a.type] || a.type), esc(a.detail),
+  ])).join('') || row(['<i>None</i>', '', '', ''])}
+  </tbody></table>
+
+  <h2>4. Incidents</h2>
+  <table><thead><tr><th>ID</th><th>Category</th><th>Severity</th><th>Status</th><th>Title</th><th>Reported By</th></tr></thead><tbody>
+  ${incidents.slice(0, 20).map((i) => row([
+    esc(i.id), esc(i.category), esc(i.severity), esc(i.status), esc(i.title), esc(i.reportedBy),
+  ])).join('') || row(['<i>None</i>', '', '', '', '', ''])}
+  </tbody></table>
+
+  <div class="foot">
+    Generated by SeaWatch MDA at ${esc(now.toISOString())}. Demonstration data — not for operational use.
+  </div>
+  <div class="class" style="margin-top:18px">RESTRICTED — DEMONSTRATION</div>
+  <script>window.onload=()=>setTimeout(()=>window.print(),400)</script>
+  </body></html>`;
+
+  const w = window.open('', '_blank');
+  if (!w) { alert('Please allow pop-ups to generate the SITREP.'); return; }
+  w.document.write(html);
+  w.document.close();
+}

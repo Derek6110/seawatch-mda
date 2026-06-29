@@ -1,0 +1,18 @@
+# Render.com blueprint — one free web service that builds the client and runs the
+# Node server (API + Socket.IO + the built UI) behind a single https URL.
+# Deploy: push this repo to GitHub, then on Render: New → Blueprint → pick the repo.
+services:
+  - type: web
+    name: seawatch
+    runtime: node
+    plan: free
+    buildCommand: npm run render:build
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: DATA_SOURCE
+        value: sim
+      # Set your AISStream key in the Render dashboard to enable the live feed.
+      - key: AISSTREAM_API_KEY
+        sync: false

@@ -1,0 +1,21 @@
+{
+  "name": "seawatch-mda",
+  "version": "0.2.0",
+  "private": true,
+  "description": "SeaWatch — Ghana Navy Maritime Domain Awareness System",
+  "scripts": {
+    "install:all": "npm --prefix server install && npm --prefix client install",
+    "dev": "concurrently -n SERVER,CLIENT -c green,cyan \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix client run dev",
+    "build": "npm --prefix client run build",
+    "start": "node server/src/index.js",
+    "render:build": "npm --prefix server install --include=dev && npm --prefix client install --include=dev && npm --prefix client run build"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

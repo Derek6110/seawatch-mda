@@ -1,0 +1,12 @@
+node_modules/
+dist/
+tools/
+.env
+.env.local
+*.log
+
+# Runtime data (user accounts + password hashes) — never commit
+**/data/
+server/data/
+
+.DS_Store
