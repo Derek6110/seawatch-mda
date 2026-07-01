@@ -10,3 +10,11 @@ tools/
 server/data/
 
 .DS_Store
+
+# Office lock/temp files
+~$*
+
+# Regenerable presentation build artifacts (scripts are kept)
+presentation/*.pptx
+presentation/*.docx
+presentation/crest.png
