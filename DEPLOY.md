@@ -35,6 +35,27 @@ storage and self-service signups are lost on redeploy. The app auto-creates its
 > Render's own free Postgres works too (New ► Postgres), but it expires after ~30
 > days; Neon's free tier is persistent, so it's the better fit here.
 
+## Live AIS providers
+
+SeaWatch can ingest live AIS from either or both providers; any that are
+configured feed the same picture. Switch Simulation ⇄ Live in the top bar.
+
+**AISStream.io** (WebSocket, free tier) — set `AISSTREAM_API_KEY`.
+
+**MarineTraffic** (polling REST API, paid subscription):
+
+| Variable | Purpose |
+|----------|---------|
+| `MARINETRAFFIC_API_KEY` | Your MarineTraffic API key. A Gulf-of-Guinea area URL is built from it automatically. |
+| `MARINETRAFFIC_URL` | *(recommended)* Paste the **exact** endpoint from your MarineTraffic product (e.g. "Vessel Positions in a Predefined Area"). Overrides the auto-built URL. Must return `protocol:jsono`. |
+| `MARINETRAFFIC_POLL_SEC` | Poll interval in seconds (default `120`). **Match your plan's allowed call frequency** — polling faster than your plan permits can incur extra credit charges or `429` rate-limiting. |
+| `MARINETRAFFIC_SPEED_TENTHS` | `true` (default) if the feed reports `SPEED` in tenths of a knot; set `false` if your product returns knots directly. |
+
+Set these in the same place as `DATABASE_URL` (Render → Environment). With a key
+set, `Live` mode shows a `marinetraffic` provider in `/api/stats`. Because the
+API is paid and account-specific, confirm the field format (especially speed
+units) against your first live response.
+
 ## Option B — Any Docker host (Fly.io, Railway, Cloud Run)
 A `Dockerfile` is included. Example (Fly.io):
 ```bash

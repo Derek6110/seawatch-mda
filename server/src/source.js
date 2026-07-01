@@ -5,17 +5,33 @@
 import { config } from './config.js';
 import { ensureSimVessels, clearSimVessels } from './simulator.js';
 import { startLiveAis, stopLiveAis } from './aisstream.js';
+import { startMarineTraffic, stopMarineTraffic } from './marinetraffic.js';
 
 let mode = 'sim';
 
 export function getMode() { return mode; }
-export function liveAvailable() { return !!config.aisStreamKey; }
+
+// Live picture is available if any real-AIS provider is configured.
+export function liveAvailable() {
+  return !!config.aisStreamKey || !!config.marineTraffic.url;
+}
+
+// Start every configured live provider; returns true if at least one started.
+function startLiveFeeds() {
+  const a = startLiveAis();          // AISStream (WebSocket) — no-op without key
+  const m = startMarineTraffic();    // MarineTraffic (polling) — no-op without URL
+  return a || m;
+}
+function stopLiveFeeds() {
+  stopLiveAis();          // closes stream + drops live contacts
+  stopMarineTraffic();    // stops polling
+}
 
 // Initialise to the configured mode at boot.
 export function initSource() {
   mode = config.dataSource;
   if (mode === 'live' || mode === 'hybrid') {
-    if (!startLiveAis()) mode = 'sim'; // no key → fall back
+    if (!startLiveFeeds()) mode = 'sim'; // no provider configured → fall back
   }
   if (mode === 'sim' || mode === 'hybrid') ensureSimVessels();
   if (mode === 'live') clearSimVessels();
@@ -26,17 +42,17 @@ export function initSource() {
 export function setMode(newMode) {
   if (!['sim', 'live', 'hybrid'].includes(newMode)) throw new Error('invalid mode');
   if ((newMode === 'live' || newMode === 'hybrid') && !liveAvailable()) {
-    throw new Error('no AISStream API key configured on the server');
+    throw new Error('no live AIS provider (AISStream or MarineTraffic) configured on the server');
   }
   if (newMode === 'sim') {
-    stopLiveAis();      // closes feed + drops live contacts
+    stopLiveFeeds();
     ensureSimVessels();
   } else if (newMode === 'live') {
     clearSimVessels();
-    startLiveAis();
+    startLiveFeeds();
   } else { // hybrid
     ensureSimVessels();
-    startLiveAis();
+    startLiveFeeds();
   }
   mode = newMode;
   config.dataSource = newMode;

@@ -11,6 +11,28 @@ function parseLiveBbox(s, def) {
   return { minLat: p[0], minLon: p[1], maxLat: p[2], maxLon: p[3] };
 }
 
+const liveBbox = parseLiveBbox(process.env.LIVE_BBOX, { minLat: 1.4, minLon: -4.2, maxLat: 6.4, maxLon: 2.2 });
+
+// MarineTraffic live-AIS provider (polling REST API — paid subscription).
+// Provide MARINETRAFFIC_API_KEY; the area endpoint below is built from the live
+// bounding box by default, or override the whole URL with MARINETRAFFIC_URL
+// (recommended — paste the exact endpoint your MarineTraffic product gives you).
+function marineTrafficCfg() {
+  const key = process.env.MARINETRAFFIC_API_KEY || '';
+  const bb = liveBbox;
+  const defaultUrl = key
+    ? `https://services.marinetraffic.com/api/exportvessels/v:8/${key}`
+      + `/MINLAT:${bb.minLat}/MAXLAT:${bb.maxLat}/MINLON:${bb.minLon}/MAXLON:${bb.maxLon}`
+      + `/protocol:jsono/msgtype:extended`
+    : '';
+  return {
+    key,
+    url: process.env.MARINETRAFFIC_URL || defaultUrl,
+    pollSec: Number(process.env.MARINETRAFFIC_POLL_SEC) || 120, // respect your plan's rate limit
+    speedTenths: process.env.MARINETRAFFIC_SPEED_TENTHS !== 'false', // MT reports SPEED in tenths of a knot
+  };
+}
+
 export const config = {
   port: Number(process.env.PORT) || 4000,
 
@@ -37,8 +59,11 @@ export const config = {
   // Bounding box for the LIVE subscription. Defaults to the Gulf of Guinea, but
   // can be pointed anywhere via LIVE_BBOX="minLat,minLon,maxLat,maxLon" — useful
   // to demonstrate the live feed over a well-covered area (e.g. Singapore Strait).
-  liveBbox: parseLiveBbox(process.env.LIVE_BBOX, { minLat: 1.4, minLon: -4.2, maxLat: 6.4, maxLon: 2.2 }),
+  liveBbox,
   liveRegion: process.env.LIVE_REGION || 'Gulf of Guinea',
+
+  // MarineTraffic provider settings (see marineTrafficCfg above).
+  marineTraffic: marineTrafficCfg(),
 
   // Number of simulated vessels for the demo dataset.
   vesselCount: Number(process.env.VESSEL_COUNT) || 90,

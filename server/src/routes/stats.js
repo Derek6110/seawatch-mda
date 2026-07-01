@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { store, listVessels } from '../store.js';
 import { config } from '../config.js';
 import { isLiveConnected } from '../aisstream.js';
+import { isMtConnected } from '../marinetraffic.js';
 import { dbMode } from '../db.js';
 
 const router = Router();
@@ -20,6 +21,9 @@ router.get('/stats', (_req, res) => {
   const dark = vessels.filter((v) => v.flags && v.flags.length);
   const openAlerts = store.alerts.filter((a) => a.status === 'open');
   const liveCount = vessels.filter((v) => v.source === 'ais-live').length;
+  const mtCount = vessels.filter((v) => v.provider === 'marinetraffic').length;
+  const aisConnected = isLiveConnected();
+  const mtConnected = isMtConnected();
   res.json({
     totalVessels: vessels.length,
     darkVessels: dark.length,
@@ -33,14 +37,18 @@ router.get('/stats', (_req, res) => {
     friendlyUnits: vessels.filter((v) => v.isNavy).length,
     source: {
       mode: config.dataSource,
-      live: isLiveConnected(),
+      live: aisConnected || mtConnected,
       liveVessels: liveCount,
-      hasKey: !!config.aisStreamKey,
+      hasKey: !!config.aisStreamKey || !!config.marineTraffic.url,
       region: config.liveRegion,
       center: [
         (config.liveBbox.minLat + config.liveBbox.maxLat) / 2,
         (config.liveBbox.minLon + config.liveBbox.maxLon) / 2,
       ],
+      providers: {
+        aisstream: { configured: !!config.aisStreamKey, connected: aisConnected },
+        marinetraffic: { configured: !!config.marineTraffic.url, connected: mtConnected, vessels: mtCount },
+      },
     },
     // Persistence backend: 'pg' (durable Postgres) or 'file' (ephemeral).
     accountsStore: dbMode(),
