@@ -6,6 +6,7 @@ import { config } from './config.js';
 import { ensureSimVessels, clearSimVessels } from './simulator.js';
 import { startLiveAis, stopLiveAis } from './aisstream.js';
 import { startMarineTraffic, stopMarineTraffic } from './marinetraffic.js';
+import { startDataDocked, stopDataDocked } from './datadocked.js';
 
 let mode = 'sim';
 
@@ -13,18 +14,20 @@ export function getMode() { return mode; }
 
 // Live picture is available if any real-AIS provider is configured.
 export function liveAvailable() {
-  return !!config.aisStreamKey || !!config.marineTraffic.url;
+  return !!config.aisStreamKey || !!config.marineTraffic.url || !!config.dataDocked.key;
 }
 
 // Start every configured live provider; returns true if at least one started.
 function startLiveFeeds() {
   const a = startLiveAis();          // AISStream (WebSocket) — no-op without key
   const m = startMarineTraffic();    // MarineTraffic (polling) — no-op without URL
-  return a || m;
+  const d = startDataDocked();       // Data Docked (polling) — no-op without key
+  return a || m || d;
 }
 function stopLiveFeeds() {
   stopLiveAis();          // closes stream + drops live contacts
   stopMarineTraffic();    // stops polling
+  stopDataDocked();       // stops polling
 }
 
 // Initialise to the configured mode at boot.

@@ -33,6 +33,25 @@ function marineTrafficCfg() {
   };
 }
 
+// Data Docked provider (https://datadocked.com) — polling REST, credit-metered.
+// Covers an area by querying one or more centre points (each a circle of
+// radiusKm, max 50). Default is a single point over the busy Tema/Accra approach
+// to conserve credits; add more via DATADOCKED_POINTS="lat,lon;lat,lon".
+function dataDockedCfg() {
+  const parsePoints = (s, def) => {
+    if (!s) return def;
+    const pts = s.split(';').map((p) => p.split(',').map(Number)).filter((p) => p.length === 2 && p.every(Number.isFinite));
+    return pts.length ? pts : def;
+  };
+  return {
+    key: process.env.DATADOCKED_API_KEY || '',
+    points: parsePoints(process.env.DATADOCKED_POINTS, [[5.6, 0.0]]), // Tema / Accra approach
+    radiusKm: Math.min(50, Number(process.env.DATADOCKED_RADIUS_KM) || 50),
+    pollSec: Number(process.env.DATADOCKED_POLL_SEC) || 300, // 5 min default — conserve credits
+    speedTenths: process.env.DATADOCKED_SPEED_TENTHS !== 'false',
+  };
+}
+
 export const config = {
   port: Number(process.env.PORT) || 4000,
 
@@ -64,6 +83,9 @@ export const config = {
 
   // MarineTraffic provider settings (see marineTrafficCfg above).
   marineTraffic: marineTrafficCfg(),
+
+  // Data Docked provider settings (see dataDockedCfg above).
+  dataDocked: dataDockedCfg(),
 
   // Number of simulated vessels for the demo dataset.
   vesselCount: Number(process.env.VESSEL_COUNT) || 90,

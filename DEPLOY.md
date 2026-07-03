@@ -56,6 +56,19 @@ set, `Live` mode shows a `marinetraffic` provider in `/api/stats`. Because the
 API is paid and account-specific, confirm the field format (especially speed
 units) against your first live response.
 
+**Data Docked** (polling REST, credit-metered — https://datadocked.com):
+
+| Variable | Purpose |
+|----------|---------|
+| `DATADOCKED_API_KEY` | Your Data Docked API key (sent as the `x-api-key` header). |
+| `DATADOCKED_POINTS` | Query centres `"lat,lon;lat,lon"` — each polled as a ≤50 km circle. Default: one point over the Tema/Accra approach. Add more for wider coverage (**each point = one credited call per cycle**). |
+| `DATADOCKED_RADIUS_KM` | Circle radius, max `50` (default 50). |
+| `DATADOCKED_POLL_SEC` | Poll interval (default `300` = 5 min). **Data Docked charges credits per call**, so a long interval + few points conserves credits; the provider auto-pauses when it hits `"Not enough credits"`. |
+| `DATADOCKED_SPEED_TENTHS` | `true` (default) — speed is reported in tenths of a knot. |
+
+Verified against Ghana's waters (real vessels near Tema, Lomé, Takoradi). Aids to
+navigation (MMSI starting `99`) are filtered out automatically.
+
 ## Option B — Any Docker host (Fly.io, Railway, Cloud Run)
 A `Dockerfile` is included. Example (Fly.io):
 ```bash
