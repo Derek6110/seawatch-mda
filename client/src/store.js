@@ -37,6 +37,7 @@ export const useStore = create((set, get) => ({
   activeChannel: 'ops-national',
   messages: {},
   presence: {},
+  overlays: [], // shared tactical map drawings, synced across MOCs
 
   // --- ui ---
   selectedMmsi: null,
@@ -110,10 +111,11 @@ export const useStore = create((set, get) => ({
 
   // --- data bootstrap --------------------------------------------------------
   async init() {
-    const [mocs, operators, zones, vessels, alerts, incidents, tasks, stats] =
+    const [mocs, operators, zones, vessels, alerts, incidents, tasks, stats, overlays] =
       await Promise.all([
         api.mocs(), api.operators(), api.zones(), api.vessels(),
         api.alerts(), api.incidents(), api.tasks(), api.stats(),
+        api.overlays().catch(() => []),
       ]);
     const byMmsi = {};
     vessels.forEach((v) => (byMmsi[v.mmsi] = v));
@@ -121,7 +123,7 @@ export const useStore = create((set, get) => ({
     const currentMoc = mocs.find((m) => m.id === user?.mocId) || mocs[0];
     set({
       mocs, operators, zones, vessels, vesselsByMmsi: byMmsi,
-      alerts, incidents, tasks, stats,
+      alerts, incidents, tasks, stats, overlays,
       source: stats?.source || { mode: 'sim', live: false },
       currentMoc,
       currentOperator: { name: user?.name || 'Operator', role: user?.role },
@@ -173,6 +175,13 @@ export const useStore = create((set, get) => ({
       set((s) => ({ messages: { ...s.messages, [msg.channelId]: [...(s.messages[msg.channelId] || []), msg] } })));
     socket.on('presence:update', ({ channelId, members }) =>
       set((s) => ({ presence: { ...s.presence, [channelId]: members } })));
+
+    socket.on('overlay:new', (o) =>
+      set((s) => (s.overlays.some((x) => x.id === o.id) ? {} : { overlays: [...s.overlays, o] })));
+    socket.on('overlay:update', (o) =>
+      set((s) => ({ overlays: s.overlays.map((x) => (x.id === o.id ? o : x)) })));
+    socket.on('overlay:delete', ({ id }) =>
+      set((s) => ({ overlays: s.overlays.filter((x) => x.id !== id) })));
   },
 
   async refreshStats() {
@@ -273,6 +282,18 @@ export const useStore = create((set, get) => ({
   collaborators() {
     const { mocs, currentMoc } = get();
     return mocs.filter((m) => m.id !== currentMoc?.id);
+  },
+
+  // --- shared tactical overlays (map drawings) --------------------------------
+  // Server broadcast (overlay:*) is the source of truth; these fire-and-forget.
+  async createOverlay(spec) {
+    try { await api.createOverlay(spec); } catch (e) { console.error('overlay save failed:', e.message); }
+  },
+  async updateOverlay(id, patch) {
+    try { await api.updateOverlay(id, patch); } catch { /* ignore */ }
+  },
+  async deleteOverlay(id) {
+    try { await api.deleteOverlay(id); } catch { /* ignore */ }
   },
   async createTask(body) {
     const { currentMoc } = get();

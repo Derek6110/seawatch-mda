@@ -6,6 +6,7 @@ import alerts from './alerts.js';
 import collaboration from './collaboration.js';
 import stats from './stats.js';
 import source from './source.js';
+import overlays from './overlays.js';
 
 const api = Router();
 
@@ -17,5 +18,6 @@ api.use(alerts);
 api.use(collaboration);
 api.use(stats);
 api.use(source);
+api.use(overlays);
 
 export default api;

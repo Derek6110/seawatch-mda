@@ -4,7 +4,7 @@ import { store, listVessels } from '../store.js';
 import { config } from '../config.js';
 import { isLiveConnected } from '../aisstream.js';
 import { isMtConnected } from '../marinetraffic.js';
-import { isDdConnected } from '../datadocked.js';
+import { isDdConnected, ddStatus } from '../datadocked.js';
 import { dbMode } from '../db.js';
 
 const router = Router();
@@ -51,7 +51,10 @@ router.get('/stats', (_req, res) => {
       providers: {
         aisstream: { configured: !!config.aisStreamKey, connected: aisConnected },
         marinetraffic: { configured: !!config.marineTraffic.url, connected: mtConnected, vessels: mtCount },
-        datadocked: { configured: !!config.dataDocked.key, connected: ddConnected, vessels: ddCount },
+        datadocked: {
+          configured: !!config.dataDocked.key, connected: ddConnected, vessels: ddCount,
+          outOfCredits: ddStatus().outOfCredits, lastError: ddStatus().lastError,
+        },
       },
     },
     // Persistence backend: 'pg' (durable Postgres) or 'file' (ephemeral).

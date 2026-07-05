@@ -40,6 +40,10 @@ export const api = {
   approveUser: (id) => req(`/users/${id}/approve`, { method: 'POST', body: '{}' }),
   deleteUser: (id) => req(`/users/${id}`, { method: 'DELETE' }),
   setSourceMode: (mode) => req('/source/mode', { method: 'POST', body: JSON.stringify({ mode }) }),
+  overlays: () => req('/overlays'),
+  createOverlay: (body) => req('/overlays', { method: 'POST', body: JSON.stringify(body) }),
+  updateOverlay: (id, body) => req(`/overlays/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteOverlay: (id) => req(`/overlays/${id}`, { method: 'DELETE' }),
 
   // reference + picture
   mocs: () => req('/mocs'),

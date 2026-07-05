@@ -18,7 +18,7 @@ import { ageLiveVessels } from './aisstream.js';
 import { initSource, getMode, simActive, liveActive } from './source.js';
 import { setupSockets } from './socket.js';
 import { initAuth } from './auth.js';
-import { loadIncidents, loadTasks } from './db.js';
+import { loadIncidents, loadTasks, loadOverlays } from './db.js';
 import { store, listVessels, pushHistory, syncSequences } from './store.js';
 import api from './routes/index.js';
 
@@ -50,9 +50,10 @@ setupSockets(io);
 seedStaticData();
 await initAuth(); // loads accounts from Postgres (if DATABASE_URL) or local file
 // Restore persisted incidents & taskings (Postgres mode) and resume ID numbering.
-const [savedIncidents, savedTasks] = await Promise.all([loadIncidents(), loadTasks()]);
+const [savedIncidents, savedTasks, savedOverlays] = await Promise.all([loadIncidents(), loadTasks(), loadOverlays()]);
 if (savedIncidents.length) store.incidents = savedIncidents;
 if (savedTasks.length) store.tasks = savedTasks;
+if (savedOverlays.length) store.overlays = savedOverlays.reverse(); // oldest first
 syncSequences();
 const startMode = initSource();
 

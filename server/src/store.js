@@ -12,6 +12,7 @@ export const store = {
   messages: [], // collaboration chat messages, keyed by channelId
   tasks: [], // taskings: assign an asset to investigate a contact
   history: [], // rolling positional snapshots for track replay
+  overlays: [], // shared tactical map drawings (measurements, shapes, markers)
 };
 
 // Append a lean positional snapshot for replay and trim to the configured size.

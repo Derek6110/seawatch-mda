@@ -14,14 +14,20 @@ import { store } from './store.js';
 
 const BASE = 'https://datadocked.com/api/vessels_operations/get-vessels-by-area';
 const TRACK_LEN = 30;
+const CREDIT_RETRY_MS = 30 * 60 * 1000; // after "out of credits", retry every 30 min
+
 let timer = null;
 let connected = false;
 let lastError = null;
 let lastCount = 0;
-let outOfCredits = false;
+let creditPauseUntil = 0; // 0 = not paused; else epoch ms when polling may resume
+
+const creditPaused = () => Date.now() < creditPauseUntil;
 
 export function isDdConnected() { return connected; }
-export function ddStatus() { return { connected, lastError, lastCount, outOfCredits }; }
+export function ddStatus() {
+  return { connected, lastError, lastCount, outOfCredits: creditPaused() };
+}
 
 function typeFromDd(ts) {
   const s = (ts || '').toLowerCase();
@@ -93,9 +99,9 @@ async function pollPoint(lat, lon) {
     if (!r.ok) {
       const b = await r.text();
       if (r.status === 400 && /credit/i.test(b)) {
-        outOfCredits = true;
+        creditPauseUntil = Date.now() + CREDIT_RETRY_MS;
         lastError = 'out of credits';
-        console.warn('  Data Docked: out of credits — pausing further polls.');
+        console.warn(`  Data Docked: out of credits — pausing polls, will retry in ${CREDIT_RETRY_MS / 60000} min.`);
       } else {
         lastError = `HTTP ${r.status}`;
       }
@@ -105,7 +111,7 @@ async function pollPoint(lat, lon) {
     const arr = Array.isArray(j) ? j : (j.data || j.vessels || j.results || []);
     let n = 0;
     for (const row of arr) if (upsert(row)) n++;
-    outOfCredits = false;
+    creditPauseUntil = 0;
     return n;
   } finally {
     clearTimeout(t);
@@ -113,27 +119,27 @@ async function pollPoint(lat, lon) {
 }
 
 async function poll() {
-  if (!config.dataDocked.key || outOfCredits) return;
+  if (!config.dataDocked.key || creditPaused()) return;
   let total = 0;
   let ok = false;
   for (const [lat, lon] of config.dataDocked.points) {
-    if (outOfCredits) break;
+    if (creditPaused()) break;
     try { total += await pollPoint(lat, lon); ok = true; }
     catch (e) { lastError = e.message; }
   }
-  if (ok && !outOfCredits) {
+  if (creditPaused()) {
+    connected = false;
+  } else if (ok) {
     connected = true;
     lastCount = total;
     if (total) console.log(`  Data Docked: ${total} vessels ingested from ${config.dataDocked.points.length} area(s).`);
-  } else if (outOfCredits) {
-    connected = false;
   }
 }
 
 export function startDataDocked() {
   if (!config.dataDocked.key) return false;
   if (timer) return true;
-  outOfCredits = false;
+  creditPauseUntil = 0;
   console.log(`  Data Docked: polling ${config.dataDocked.points.length} area(s) every ${config.dataDocked.pollSec}s (credit-metered).`);
   poll();
   timer = setInterval(poll, config.dataDocked.pollSec * 1000);

@@ -47,7 +47,7 @@ export async function initUserDb() {
     `);
     // Incidents, taskings and the audit log are stored as JSON documents so the
     // full record (including nested updates) persists without a rigid schema.
-    for (const t of ['incidents', 'tasks', 'audit']) {
+    for (const t of ['incidents', 'tasks', 'audit', 'overlays']) {
       await pool.query(`CREATE TABLE IF NOT EXISTS ${t} (
         id TEXT PRIMARY KEY, ts BIGINT NOT NULL, data JSONB NOT NULL);`);
     }
@@ -121,9 +121,17 @@ async function saveDoc(table, doc) {
   );
 }
 
+async function deleteDoc(table, id) {
+  if (mode !== 'pg' || !id) return;
+  await pool.query(`DELETE FROM ${table} WHERE id=$1`, [String(id)]);
+}
+
 export const loadIncidents = () => loadDocs('incidents');
 export const saveIncident = (i) => saveDoc('incidents', i).catch((e) => console.error('saveIncident:', e.message));
 export const loadTasks = () => loadDocs('tasks');
 export const saveTask = (t) => saveDoc('tasks', t).catch((e) => console.error('saveTask:', e.message));
 export const loadAudit = (limit = 1000) => loadDocs('audit', limit);
 export const saveAudit = (a) => saveDoc('audit', a).catch((e) => console.error('saveAudit:', e.message));
+export const loadOverlays = () => loadDocs('overlays');
+export const saveOverlay = (o) => saveDoc('overlays', o).catch((e) => console.error('saveOverlay:', e.message));
+export const deleteOverlay = (id) => deleteDoc('overlays', id).catch((e) => console.error('deleteOverlay:', e.message));
