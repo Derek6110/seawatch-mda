@@ -82,13 +82,44 @@ function FollowController() {
   const map = useMap();
   const followMmsi = useStore((s) => s.followMmsi);
   const byMmsi = useStore((s) => s.vesselsByMmsi);
+  const prevRef = useRef(null);
   useEffect(() => {
-    if (followMmsi && byMmsi[followMmsi]) {
-      const v = byMmsi[followMmsi];
+    if (!followMmsi) { prevRef.current = null; return; }
+    const v = byMmsi[followMmsi];
+    if (!v) return;
+    if (prevRef.current !== followMmsi) {
+      // New follow (e.g. from an alert's Follow button): slew AND zoom in so the
+      // highlighted contact is unmistakable.
+      prevRef.current = followMmsi;
+      map.setView([v.lat, v.lon], Math.max(map.getZoom(), 9), { animate: true });
+    } else {
       map.panTo([v.lat, v.lon], { animate: true });
     }
   }, [followMmsi, byMmsi, map]);
   return null;
+}
+
+// Pulsing gold halo on the currently selected contact so it stands out the
+// moment an operator hits Follow/Track from an alert or panel.
+const highlightIcon = L.divIcon({
+  className: 'sel-highlight',
+  html: `<div style="position:relative;width:52px;height:52px;pointer-events:none;">
+    <span class="pulse-ring" style="position:absolute;inset:0;border-radius:50%;border:3px solid #fcd116;"></span>
+    <span class="pulse-ring" style="position:absolute;inset:0;border-radius:50%;border:3px solid #fcd116;animation-delay:.6s;"></span>
+    <span style="position:absolute;inset:15px;border-radius:50%;border:2px solid #fcd116;box-shadow:0 0 10px #fcd116aa;"></span>
+  </div>`,
+  iconSize: [52, 52], iconAnchor: [26, 26],
+});
+
+function SelectedHighlight() {
+  const selectedMmsi = useStore((s) => s.selectedMmsi);
+  const byMmsi = useStore((s) => s.vesselsByMmsi);
+  const v = selectedMmsi ? byMmsi[selectedMmsi] : null;
+  if (!v) return null;
+  return (
+    <Marker position={[v.lat, v.lon]} icon={highlightIcon}
+      interactive={false} zIndexOffset={-1000} />
+  );
 }
 
 function ZonesLayer() {
@@ -199,6 +230,7 @@ export default function MapView() {
       <BasemapLayer />
       <ZonesLayer />
       <SelectedTrack />
+      <SelectedHighlight />
       <VesselMarkers onSelect={selectVessel} />
       {mocs.map((m) => (
         <Marker key={m.id} position={[m.lat, m.lon]} icon={mocIconRef.current}>
