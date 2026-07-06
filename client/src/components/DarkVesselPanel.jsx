@@ -4,10 +4,11 @@ import { useStore } from '../store.js';
 import { ALERT_LABELS, RISK_COLORS } from '../lib/colors.js';
 
 const METHODS = [
-  { key: 'ais-gap', label: 'AIS Gap', desc: 'Transponder switched off at sea' },
+  { key: 'going-dark', label: 'Going Dark', desc: 'AIS silent 2–3 hours' },
+  { key: 'gone-dark', label: 'Gone Dark', desc: 'AIS silent over 3 hours' },
   { key: 'spoofing', label: 'Spoofing', desc: 'Implausible / falsified position' },
   { key: 'loitering', label: 'Loitering', desc: 'Slow drift in sensitive zone' },
-  { key: 'sts', label: 'STS Transfer', desc: 'Close rendezvous offshore' },
+  { key: 'sts', label: 'STS', desc: '<0.3 NM apart, <1.2 kn, offshore & outside anchorages' },
   { key: 'zone-violation', label: 'Zone Breach', desc: 'Inside restricted area' },
 ];
 
@@ -36,7 +37,7 @@ export default function DarkVesselPanel() {
       </div>
 
       {/* Detection method summary */}
-      <div className="grid grid-cols-5 gap-1 p-2 border-b border-navy-700">
+      <div className="grid grid-cols-6 gap-1 p-2 border-b border-navy-700">
         {METHODS.map((m) => (
           <div key={m.key} title={m.desc}
             className="text-center rounded bg-navy-850 border border-navy-700 py-1.5">
@@ -47,8 +48,8 @@ export default function DarkVesselPanel() {
       </div>
 
       <div className="px-3 py-1.5 text-[10px] text-slate-500 leading-snug border-b border-navy-700">
-        Fuses AIS gaps, spoofing, loitering, STS rendezvous & zone breaches. In production,
-        correlate with coastal radar & SAT/optical imagery to resolve non-cooperative contacts.
+        Going Dark = AIS silent 2–3 h · Gone Dark = over 3 h · STS = pair &lt;0.3 NM at &lt;1.2 kn
+        offshore, outside anchorages. Correlate with radar &amp; SAT imagery to resolve contacts.
       </div>
 
       <div className="flex-1 overflow-y-auto p-2 space-y-2">

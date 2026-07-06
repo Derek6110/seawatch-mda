@@ -59,20 +59,21 @@ export function runDetection(io) {
     v.flags = [];
     if (v.isNavy) continue;
 
-    // Rule 1 — AIS gap: at sea with no AIS report for more than the threshold
-    // (default 6 hours). The longer the silence, the higher the severity.
+    // Rule 1 — AIS silence, two tiers: GOING DARK when the last report is older
+    // than 2 hours (medium), escalating to GONE DARK past 3 hours (high).
     const gapMin = (now - v.lastReport) / 60000;
-    if (!v.aisOn && gapMin >= D.aisGapMinutes) {
-      v.flags.push('ais-gap');
+    if (!v.aisOn && gapMin >= D.goingDarkMinutes) {
+      const gone = gapMin >= D.goneDarkMinutes;
+      v.flags.push(gone ? 'gone-dark' : 'going-dark');
       v.classification = 'suspect';
       const a = emit(io, {
-        type: 'ais-gap',
-        severity: gapMin >= 720 ? 'high' : 'medium', // 12h+ => high
+        type: gone ? 'gone-dark' : 'going-dark',
+        severity: gone ? 'high' : 'medium',
         mmsi: v.mmsi,
         vesselName: v.name,
         lat: v.lat, lon: v.lon,
-        title: 'AIS signal lost (going dark)',
-        detail: `${v.name} (${v.flag}) has not transmitted AIS for ${fmtGap(gapMin)} while at sea (threshold ${fmtGap(D.aisGapMinutes)}).`,
+        title: gone ? 'GONE DARK — AIS silent over 3 hours' : 'GOING DARK — AIS silent over 2 hours',
+        detail: `${v.name} (${v.flag}) has not transmitted AIS for ${fmtGap(gapMin)} while at sea (${gone ? 'gone dark: >' + fmtGap(D.goneDarkMinutes) : 'going dark: ' + fmtGap(D.goingDarkMinutes) + '–' + fmtGap(D.goneDarkMinutes)}).`,
       });
       if (a) newAlerts.push(a);
     }
@@ -145,18 +146,19 @@ export function runDetection(io) {
     }
   }
 
-  // Rule 5 — ship-to-ship rendezvous: two slow vessels in close proximity,
-  // away from designated anchorages. Pre-filter to slow, non-navy contacts so
-  // the pairwise check stays cheap even with a large live dataset.
-  const slow = vessels.filter((v) => !v.isNavy && v.speed <= 3);
+  // Rule 5 — ship-to-ship rendezvous: two vessels within stsProximityNm
+  // (0.3 NM), BOTH under stsSpeedKn (1.2 kn), offshore and outside any
+  // designated anchorage. Pre-filter to slow, non-navy contacts so the pairwise
+  // check stays cheap even with a large live dataset.
+  const slow = vessels.filter((v) => !v.isNavy && v.speed < D.stsSpeedKn);
   for (let i = 0; i < slow.length; i++) {
     for (let j = i + 1; j < slow.length; j++) {
       const a = slow[i];
       const b = slow[j];
       const d = distanceNm(a, b);
-      if (d <= D.stsProximityNm) {
-        const inAnchorage = zonesContaining(a, ['anchorage']).length > 0;
-        if (inAnchorage) continue;
+      if (d < D.stsProximityNm) {
+        // Skip if either vessel sits in a designated anchorage.
+        if (zonesContaining(a, ['anchorage']).length || zonesContaining(b, ['anchorage']).length) continue;
         a.flags.push('sts'); b.flags.push('sts');
         const alert = emit(io, {
           type: 'sts',
@@ -165,7 +167,7 @@ export function runDetection(io) {
           vesselName: `${a.name} ↔ ${b.name}`,
           lat: (a.lat + b.lat) / 2, lon: (a.lon + b.lon) / 2,
           title: 'Possible ship-to-ship transfer',
-          detail: `${a.name} and ${b.name} stationary ${d.toFixed(2)} NM apart offshore — possible illicit STS / fuel transfer.`,
+          detail: `${a.name} and ${b.name} ${d.toFixed(2)} NM apart at under ${D.stsSpeedKn} kn, offshore and outside any anchorage — possible illicit STS / fuel transfer.`,
         });
         if (alert) newAlerts.push(alert);
       }

@@ -152,13 +152,14 @@ export function stopLiveAis() {
 
 const MAX_LIVE = 1500; // safety cap so a wide subscription can't bloat the store
 
-// Live vessels whose AIS has not refreshed within the gap threshold are marked
-// dark so the detection engine flags them just like simulated dark contacts.
-// Also evicts very stale live contacts and enforces a hard cap.
+// Live vessels whose AIS has not refreshed within the going-dark threshold are
+// marked dark so the detection engine flags them just like simulated contacts.
+// Eviction happens well past the gone-dark tier so a silent vessel is flagged
+// (going dark at 2h, gone dark at 3h) before it is dropped from the picture.
 export function ageLiveVessels() {
   const now = Date.now();
-  const gapMs = config.detection.aisGapMinutes * 60 * 1000;
-  const staleMs = 60 * 60 * 1000;
+  const gapMs = config.detection.goingDarkMinutes * 60 * 1000;
+  const staleMs = Math.max(6 * 60 * 60 * 1000, config.detection.goneDarkMinutes * 2 * 60 * 1000);
   const live = [];
   for (const v of store.vessels.values()) {
     if (v.source !== 'ais-live') continue;

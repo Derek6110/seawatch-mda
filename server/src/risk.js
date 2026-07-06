@@ -4,7 +4,8 @@
 
 const FLAG_WEIGHT = {
   spoofing: 40,
-  'ais-gap': 30,
+  'gone-dark': 35, // AIS silent > 3 h
+  'going-dark': 20, // AIS silent 2–3 h
   sts: 35,
   loitering: 20,
   'zone-violation': 25,

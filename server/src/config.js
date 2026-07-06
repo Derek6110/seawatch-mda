@@ -99,12 +99,17 @@ export const config = {
 
   // Dark-vessel detection thresholds.
   detection: {
-    // Flag a vessel as suspected (gone dark) once it has not transmitted AIS for
-    // more than 6 hours while at sea. Override with AIS_GAP_MINUTES.
-    aisGapMinutes: Number(process.env.AIS_GAP_MINUTES) || 360,
+    // Two-tier AIS-silence doctrine: a vessel whose last AIS report is older
+    // than 2 hours is "GOING DARK" (medium); older than 3 hours is "GONE DARK"
+    // (high). Override with GOING_DARK_MINUTES / GONE_DARK_MINUTES.
+    goingDarkMinutes: Number(process.env.GOING_DARK_MINUTES) || 120,
+    goneDarkMinutes: Number(process.env.GONE_DARK_MINUTES) || 180,
     loiterSpeedKn: 1.2,
     loiterMinutes: 25,
-    stsProximityNm: 0.6,
+    // Ship-to-ship transfer: two vessels within 0.3 NM, both under 1.2 kn,
+    // offshore and outside a designated anchorage.
+    stsProximityNm: Number(process.env.STS_PROXIMITY_NM) || 0.3,
+    stsSpeedKn: Number(process.env.STS_SPEED_KN) || 1.2,
     impossibleSpeedKn: 45,
   },
 };

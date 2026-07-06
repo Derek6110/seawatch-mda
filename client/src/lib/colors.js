@@ -24,7 +24,8 @@ export const SEVERITY_COLORS = {
 };
 
 export const ALERT_LABELS = {
-  'ais-gap': 'AIS Gap (Dark)',
+  'going-dark': 'Going Dark (2–3h)',
+  'gone-dark': 'Gone Dark (>3h)',
   spoofing: 'Position Spoofing',
   loitering: 'Loitering',
   'zone-violation': 'Zone Violation',

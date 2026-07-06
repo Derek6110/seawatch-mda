@@ -97,6 +97,7 @@ function populateSim() {
   goDark(pick(arr));
   startLoiter(pick(arr.filter((v) => v.type === 'fishing')) || pick(arr));
   startSpoof(pick(arr));
+  startSts(pick(arr), pick(arr));
 }
 
 export function initVessels() {
@@ -122,10 +123,10 @@ function goDark(v) {
   if (!v) return;
   v.aisOn = false;
   v.classification = 'suspect';
-  // Backdate the last report past the 6h threshold (by a random extra amount) so
-  // simulated dark contacts read as realistic 6–13h gaps immediately.
-  const extra = 5 + Math.floor(Math.random() * 420); // up to +7h
-  v.lastReport = Date.now() - (config.detection.aisGapMinutes + extra) * 60 * 1000;
+  // Backdate the last report so simulated dark contacts land in both doctrine
+  // tiers: some GOING DARK (2–3h silence), some GONE DARK (3h+).
+  const extra = 5 + Math.floor(Math.random() * 300); // +5 min … +5 h past the 2h mark
+  v.lastReport = Date.now() - (config.detection.goingDarkMinutes + extra) * 60 * 1000;
 }
 
 function startLoiter(v) {
@@ -138,6 +139,19 @@ function startSpoof(v) {
   if (!v) return;
   v.spoofing = true;
   v.classification = 'suspect';
+}
+
+// Stage a ship-to-ship rendezvous: park vessel b right next to vessel a, both
+// drifting below the STS speed threshold, clear of any designated anchorage.
+function startSts(a, b) {
+  if (!a || !b || a.mmsi === b.mmsi) return;
+  if (inAnyZoneOfKind(a, ['anchorage'])) return;
+  const gapNm = 0.1 + Math.random() * 0.15; // 0.10–0.25 NM apart (< 0.3 NM rule)
+  const pos = project(a, Math.random() * 360, gapNm);
+  b.lon = pos.lon;
+  b.lat = pos.lat;
+  a.speed = 0.3 + Math.random() * 0.6; // both < 1.2 kn
+  b.speed = 0.3 + Math.random() * 0.6;
 }
 
 // --- main tick --------------------------------------------------------------
@@ -185,10 +199,11 @@ export function tick() {
   }
 
   // Randomly evolve the threat picture so a live demo keeps producing alerts.
-  const civ = Array.from(store.vessels.values()).filter((v) => !v.isNavy);
+  const civ = Array.from(store.vessels.values()).filter((v) => !v.isNavy && v.source !== 'ais-live');
   if (Math.random() < 0.18) goDark(pick(civ));
   if (Math.random() < 0.15) startLoiter(pick(civ.filter((v) => v.type === 'fishing')) || pick(civ));
   if (Math.random() < 0.1) startSpoof(pick(civ));
+  if (Math.random() < 0.06) startSts(pick(civ), pick(civ));
   // Occasionally a dark vessel "reappears" (resumes AIS) — resolves its gap.
   if (Math.random() < 0.12) {
     const dark = civ.find((v) => !v.aisOn);
