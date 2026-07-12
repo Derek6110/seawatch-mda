@@ -36,24 +36,6 @@ export default function Login() {
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
   const switchMode = (m) => { setMode(m); clearSignupMessage(); };
 
-  // ---- Shell ---------------------------------------------------------------
-  const Shell = ({ children }) => (
-    <div className="h-screen w-screen flex items-center justify-center bg-navy-950 relative overflow-hidden">
-      <div className="absolute inset-0 opacity-[0.07]"
-        style={{ backgroundImage: 'radial-gradient(circle at center, #3aa6ff 0, transparent 60%), repeating-linear-gradient(0deg,#3aa6ff 0 1px,transparent 1px 48px), repeating-linear-gradient(90deg,#3aa6ff 0 1px,transparent 1px 48px)' }} />
-      <div className="relative w-[400px] glass rounded-xl p-7 shadow-2xl">
-        <div className="flex items-center gap-3 mb-1">
-          <Logo size={48} />
-          <div>
-            <div className="text-2xl font-bold tracking-widest text-white">SeaWatch</div>
-            <div className="text-[10px] uppercase tracking-wider text-slate-400">Ghana Navy · Maritime Domain Awareness</div>
-          </div>
-        </div>
-        {children}
-      </div>
-    </div>
-  );
-
   // ---- Step: biometric verification at sign-in -----------------------------
   if (mfaChallenge) {
     const verify = async () => {
@@ -190,6 +172,28 @@ export default function Login() {
         director@navy.gh · deputy@navy.gh · oic@navy.gh · supervisor@navy.gh · watch@navy.gh
       </div>
     </Shell>
+  );
+}
+
+// Defined at module scope (NOT inside Login) so it keeps a stable identity across
+// re-renders — otherwise React remounts the form on every keystroke and inputs
+// lose focus after each character typed.
+function Shell({ children }) {
+  return (
+    <div className="h-screen w-screen flex items-center justify-center bg-navy-950 relative overflow-hidden">
+      <div className="absolute inset-0 opacity-[0.07]"
+        style={{ backgroundImage: 'radial-gradient(circle at center, #3aa6ff 0, transparent 60%), repeating-linear-gradient(0deg,#3aa6ff 0 1px,transparent 1px 48px), repeating-linear-gradient(90deg,#3aa6ff 0 1px,transparent 1px 48px)' }} />
+      <div className="relative w-[400px] glass rounded-xl p-7 shadow-2xl">
+        <div className="flex items-center gap-3 mb-1">
+          <Logo size={48} />
+          <div>
+            <div className="text-2xl font-bold tracking-widest text-white">SeaWatch</div>
+            <div className="text-[10px] uppercase tracking-wider text-slate-400">Ghana Navy · Maritime Domain Awareness</div>
+          </div>
+        </div>
+        {children}
+      </div>
+    </div>
   );
 }
 
