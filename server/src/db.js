@@ -33,7 +33,12 @@ export async function initUserDb() {
     pool = new pg.Pool({
       connectionString: process.env.DATABASE_URL,
       ssl: { rejectUnauthorized: false }, // hosted Postgres (Neon/Render/Supabase)
+      connectionTimeoutMillis: 15000,
     });
+    // Neon (serverless) auto-suspends when idle and can be cold on the first hit
+    // after a deploy — retry the initial connection with backoff so a cold DB
+    // does not fail boot.
+    await withRetry(() => pool.query('SELECT 1'), 5);
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
@@ -47,7 +52,12 @@ export async function initUserDb() {
       );
     `);
     // Add the biometric-credentials column to any pre-existing users table.
-    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS credentials JSONB NOT NULL DEFAULT '[]'::jsonb;`);
+    // Non-fatal: a migration hiccup must never take the whole service down.
+    try {
+      await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS credentials JSONB NOT NULL DEFAULT '[]'::jsonb;`);
+    } catch (e) {
+      console.error('  users.credentials migration warning:', e.message);
+    }
     // Incidents, taskings and the audit log are stored as JSON documents so the
     // full record (including nested updates) persists without a rigid schema.
     for (const t of ['incidents', 'tasks', 'audit', 'overlays']) {
@@ -59,6 +69,21 @@ export async function initUserDb() {
     mode = 'file';
   }
   return mode;
+}
+
+// Retry an async DB operation with exponential backoff (for cold serverless DBs).
+async function withRetry(fn, attempts = 5) {
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    try { return await fn(); }
+    catch (e) {
+      lastErr = e;
+      const wait = Math.min(8000, 500 * 2 ** i);
+      console.warn(`  DB connect attempt ${i + 1}/${attempts} failed (${e.message}); retrying in ${wait}ms`);
+      await new Promise((r) => setTimeout(r, wait));
+    }
+  }
+  throw lastErr;
 }
 
 export async function loadUsers() {

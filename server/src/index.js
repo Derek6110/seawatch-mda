@@ -46,15 +46,25 @@ const io = new SocketServer(server, { cors: { origin: '*' } });
 app.set('io', io);
 setupSockets(io);
 
+// A crash here must never leave the process unable to bind its port — otherwise
+// the platform health check fails and the whole service goes 503. Log loudly and
+// carry on in a degraded mode instead of dying.
+process.on('unhandledRejection', (e) => console.error('  Unhandled rejection:', e?.message || e));
+process.on('uncaughtException', (e) => console.error('  Uncaught exception:', e?.message || e));
+
 // --- Bootstrap data ---------------------------------------------------------
 seedStaticData();
-await initAuth(); // loads accounts from Postgres (if DATABASE_URL) or local file
-// Restore persisted incidents & taskings (Postgres mode) and resume ID numbering.
-const [savedIncidents, savedTasks, savedOverlays] = await Promise.all([loadIncidents(), loadTasks(), loadOverlays()]);
-if (savedIncidents.length) store.incidents = savedIncidents;
-if (savedTasks.length) store.tasks = savedTasks;
-if (savedOverlays.length) store.overlays = savedOverlays.reverse(); // oldest first
-syncSequences();
+try {
+  await initAuth(); // loads accounts from Postgres (if DATABASE_URL) or local file
+  // Restore persisted incidents & taskings (Postgres mode) and resume ID numbering.
+  const [savedIncidents, savedTasks, savedOverlays] = await Promise.all([loadIncidents(), loadTasks(), loadOverlays()]);
+  if (savedIncidents.length) store.incidents = savedIncidents;
+  if (savedTasks.length) store.tasks = savedTasks;
+  if (savedOverlays.length) store.overlays = savedOverlays.reverse(); // oldest first
+  syncSequences();
+} catch (e) {
+  console.error('  Data bootstrap failed — starting in degraded mode (check DATABASE_URL / DB health):', e.message);
+}
 const startMode = initSource();
 
 // --- Main loop: advance picture, detect, score, record, broadcast -----------
