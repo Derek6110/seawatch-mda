@@ -17,12 +17,16 @@
 // their credentials) if a device is lost — see adminResetMfa in auth.js.
 
 import crypto from 'node:crypto';
-import {
-  generateRegistrationOptions,
-  verifyRegistrationResponse,
-  generateAuthenticationOptions,
-  verifyAuthenticationResponse,
-} from '@simplewebauthn/server';
+
+// The @simplewebauthn/server library is loaded lazily on first use rather than
+// at module load. A failure to load it (e.g. an ESM/runtime quirk on the host)
+// then degrades only the 2FA endpoints — it can never crash the whole service
+// at boot, which would take the entire app down.
+let _lib = null;
+async function lib() {
+  if (!_lib) _lib = await import('@simplewebauthn/server');
+  return _lib;
+}
 
 const RP_NAME = 'SeaWatch — Ghana Navy MDA';
 const TICKET_TTL_MS = 5 * 60 * 1000; // enrolment / step-up tickets live 5 minutes
@@ -85,6 +89,7 @@ const toLibCredential = (s) => ({
 
 // --- registration (enrolment) ----------------------------------------------
 export async function startRegistration(req, user) {
+  const { generateRegistrationOptions } = await lib();
   const { rpID } = rpFromRequest(req);
   const options = await generateRegistrationOptions({
     rpName: RP_NAME,
@@ -108,6 +113,7 @@ export async function startRegistration(req, user) {
 }
 
 export async function finishRegistration(req, ticketId, response) {
+  const { verifyRegistrationResponse } = await lib();
   const { origin, rpID } = rpFromRequest(req);
   const t = takeTicket(ticketId, 'enroll');
   const verification = await verifyRegistrationResponse({
@@ -125,6 +131,7 @@ export async function finishRegistration(req, ticketId, response) {
 
 // --- authentication (login step-up) ----------------------------------------
 export async function startAuthentication(req, user) {
+  const { generateAuthenticationOptions } = await lib();
   const { rpID } = rpFromRequest(req);
   const options = await generateAuthenticationOptions({
     rpID,
@@ -139,6 +146,7 @@ export async function startAuthentication(req, user) {
 // it (counter regression is a cloned-authenticator signal). `user` must be the
 // account resolved from the ticket, not from client-supplied data.
 export async function finishAuthentication(req, ticketId, response, user) {
+  const { verifyAuthenticationResponse } = await lib();
   const { origin, rpID } = rpFromRequest(req);
   const t = takeTicket(ticketId, 'login');
   if (t.userId !== user.id) throw new Error('session mismatch');
