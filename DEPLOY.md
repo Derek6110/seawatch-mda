@@ -102,3 +102,24 @@ git push -u origin main
 npm run render:build   # installs deps + builds the client
 npm start              # serves everything on http://localhost:4000
 ```
+
+---
+
+## Biometric 2FA (WebAuthn / FIDO2)
+SeaWatch offers a fingerprint / face second factor via the WebAuthn platform
+authenticator (Windows Hello, Touch ID, Face ID, Android biometric). It needs
+**no configuration and no keys** — it works out of the box on any HTTPS origin.
+
+- **Enrolment** is offered right after signup (and the account can enrol before a
+  director approves it). Once a user has enrolled, the biometric is **required**
+  after the password at every sign-in.
+- **HTTPS is mandatory** for WebAuthn. The Render deployment is HTTPS, so it works
+  in production; `localhost` is exempt for local development.
+- **Persistence:** enrolled credentials (public keys only — no biometric data ever
+  reaches the server) are stored in the `users.credentials` JSONB column, added
+  automatically to any existing Postgres `users` table on boot (`ADD COLUMN IF NOT
+  EXISTS`). No migration step is required.
+- **Device-bound by design:** a credential only signs in from the device it was
+  enrolled on. If a user loses/replaces a device, a **Director** clears their
+  enrolment with **Reset 2FA** in Administration → User Accounts; the user then
+  re-enrols on next signup/login.

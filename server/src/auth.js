@@ -61,7 +61,16 @@ function verifyPassword(pw, stored) {
 const publicUser = (u) => u && ({
   id: u.id, name: u.name, email: u.email, mocId: u.mocId, role: u.role,
   status: u.status || 'approved', createdAt: u.createdAt,
+  mfaEnabled: (u.credentials || []).length > 0,
+  mfaDevices: (u.credentials || []).map((c) => ({ label: c.label, createdAt: c.createdAt })),
 });
+
+export function hasMfa(user) {
+  return !!user && (user.credentials || []).length > 0;
+}
+export function getUserById(id) {
+  return users.find((u) => u.id === id) || null;
+}
 
 // --- public API ------------------------------------------------------------
 export async function initAuth(seedMocId = 'moc-nhq') {
@@ -79,7 +88,7 @@ export async function initAuth(seedMocId = 'moc-nhq') {
     for (const [name, email, role] of demo) {
       const u = {
         id: nanoid(8), name, email, mocId: seedMocId, role,
-        status: 'approved',
+        status: 'approved', credentials: [],
         passHash: hashPassword('seawatch'), createdAt: Date.now(),
       };
       users.push(u);
@@ -101,21 +110,79 @@ export async function register({ name, email, password, role, mocId }) {
   if (users.find((u) => u.email.toLowerCase() === email.toLowerCase())) throw new Error('email already registered');
   const user = {
     id: nanoid(8), name, email, mocId: mocId || 'moc-nhq', role,
-    status: 'pending',
+    status: 'pending', credentials: [],
     passHash: hashPassword(password), createdAt: Date.now(),
   };
   users.push(user);
   await upsertUser(user, users);
   logAudit(null, 'account.register', `New signup ${email} (${ROLE_LABELS[role]}) — pending approval`);
-  return { pending: true, message: 'Account created and pending administrator approval.' };
+  // Issue a short-lived grant so the new (not-yet-approved) user can enrol a
+  // biometric second factor immediately, before an administrator approves them.
+  return {
+    pending: true,
+    message: 'Account created and pending administrator approval.',
+    userId: user.id,
+    enrollGrant: issueEnrollGrant(user.id),
+  };
 }
 
-export function login({ email, password }) {
+// Step 1 of sign-in: verify the password and account status. Returns the
+// INTERNAL user object (never sent to the client as-is). The route decides
+// whether a biometric step-up is required before issuing a token.
+export function verifyCredentials({ email, password }) {
   const user = users.find((u) => u.email.toLowerCase() === (email || '').toLowerCase());
   if (!user || !verifyPassword(password || '', user.passHash)) throw new Error('invalid credentials');
   if (user.status === 'pending') throw new Error('Account is pending administrator approval.');
   if (user.status === 'disabled') throw new Error('Account has been disabled. Contact an administrator.');
-  return issueToken(user);
+  return user;
+}
+
+// Step 2 of sign-in: issue the session token once all required factors pass.
+export function completeLogin(user, { mfa = false } = {}) {
+  return issueToken(user, mfa);
+}
+
+// --- biometric credential management ---------------------------------------
+// Short-lived grants that let a freshly-signed-up (pending) account enrol a
+// credential without a full session. token -> { userId, exp }.
+const enrollGrants = new Map();
+const ENROLL_GRANT_TTL = 15 * 60 * 1000;
+function issueEnrollGrant(userId) {
+  const token = crypto.randomBytes(24).toString('base64url');
+  enrollGrants.set(token, { userId, exp: Date.now() + ENROLL_GRANT_TTL });
+  return token;
+}
+export function resolveEnrollGrant(token) {
+  const g = enrollGrants.get(token);
+  if (!g || Date.now() > g.exp) { enrollGrants.delete(token); return null; }
+  return users.find((u) => u.id === g.userId) || null;
+}
+
+export async function addCredential(userId, credential) {
+  const u = users.find((x) => x.id === userId);
+  if (!u) throw new Error('user not found');
+  u.credentials = u.credentials || [];
+  u.credentials.push(credential);
+  await upsertUser(u, users);
+  logAudit(u, 'account.mfa.enroll', `Enrolled biometric 2FA (${credential.label || 'device'})`);
+  return publicUser(u);
+}
+
+export async function bumpCredentialCounter(userId, credentialId, newCounter) {
+  const u = users.find((x) => x.id === userId);
+  if (!u) return;
+  const c = (u.credentials || []).find((x) => x.id === credentialId);
+  if (c && newCounter > (c.counter || 0)) { c.counter = newCounter; await upsertUser(u, users); }
+}
+
+// Director-only: clear a user's enrolled biometrics (e.g. lost/replaced device).
+export async function adminResetMfa(id, admin) {
+  const u = users.find((x) => x.id === id);
+  if (!u) throw new Error('user not found');
+  u.credentials = [];
+  await upsertUser(u, users);
+  logAudit(admin, 'admin.user.mfa.reset', `Reset biometric 2FA for ${u.email}`);
+  return publicUser(u);
 }
 
 // --- administration (director) --------------------------------------------
@@ -125,7 +192,7 @@ export async function adminCreateUser({ name, email, password, role, mocId }, ad
   if (users.find((u) => u.email.toLowerCase() === email.toLowerCase())) throw new Error('email already registered');
   const user = {
     id: nanoid(8), name, email, mocId: mocId || 'moc-nhq', role,
-    status: 'approved', passHash: hashPassword(password), createdAt: Date.now(),
+    status: 'approved', credentials: [], passHash: hashPassword(password), createdAt: Date.now(),
   };
   users.push(user);
   await upsertUser(user, users);
@@ -162,10 +229,10 @@ export async function adminApproveUser(id, admin) {
   return adminUpdateUser(id, { status: 'approved' }, admin);
 }
 
-function issueToken(user) {
+function issueToken(user, mfa = false) {
   const token = crypto.randomBytes(32).toString('hex');
   tokens.set(token, user.id);
-  logAudit(user, 'login', `${ROLE_LABELS[user.role]} signed in`);
+  logAudit(user, 'login', `${ROLE_LABELS[user.role]} signed in${mfa ? ' with biometric 2FA' : ''}`);
   return { token, user: publicUser(user) };
 }
 

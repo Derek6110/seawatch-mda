@@ -22,6 +22,7 @@ const rowToUser = (r) => ({
   id: r.id, name: r.name, email: r.email, mocId: r.moc_id,
   role: r.role, status: r.status, passHash: r.pass_hash,
   createdAt: Number(r.created_at),
+  credentials: r.credentials || [], // enrolled WebAuthn (biometric) authenticators
 });
 
 export function dbMode() { return mode; }
@@ -45,6 +46,8 @@ export async function initUserDb() {
         created_at BIGINT NOT NULL
       );
     `);
+    // Add the biometric-credentials column to any pre-existing users table.
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS credentials JSONB NOT NULL DEFAULT '[]'::jsonb;`);
     // Incidents, taskings and the audit log are stored as JSON documents so the
     // full record (including nested updates) persists without a rigid schema.
     for (const t of ['incidents', 'tasks', 'audit', 'overlays']) {
@@ -75,11 +78,11 @@ export async function loadUsers() {
 export async function upsertUser(u, all) {
   if (mode === 'pg') {
     await pool.query(
-      `INSERT INTO users (id, name, email, moc_id, role, status, pass_hash, created_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+      `INSERT INTO users (id, name, email, moc_id, role, status, pass_hash, created_at, credentials)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
        ON CONFLICT (id) DO UPDATE SET
-         name=$2, email=$3, moc_id=$4, role=$5, status=$6, pass_hash=$7`,
-      [u.id, u.name, u.email, u.mocId, u.role, u.status, u.passHash, u.createdAt]
+         name=$2, email=$3, moc_id=$4, role=$5, status=$6, pass_hash=$7, credentials=$9`,
+      [u.id, u.name, u.email, u.mocId, u.role, u.status, u.passHash, u.createdAt, JSON.stringify(u.credentials || [])]
     );
     return;
   }

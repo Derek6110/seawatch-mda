@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { X, UserPlus, Check, Trash2, ShieldCheck, Search } from 'lucide-react';
+import { X, UserPlus, Check, Trash2, ShieldCheck, Search, Fingerprint } from 'lucide-react';
 import { useStore } from '../store.js';
 import { ROLE_LABELS, ROLES } from '../lib/roles.js';
 import { fmtTime } from '../lib/format.js';
@@ -44,7 +44,7 @@ function AddUserForm({ mocs, onCreate, onClose }) {
 
 export default function AdminDashboard() {
   const { users, loadUsers, adminApproveUser, adminUpdateUser, adminDeleteUser, adminCreateUser,
-    setAdminOpen, mocs, user } = useStore();
+    adminResetMfa, setAdminOpen, mocs, user } = useStore();
   const [q, setQ] = useState('');
   const [adding, setAdding] = useState(false);
 
@@ -90,6 +90,7 @@ export default function AdminDashboard() {
                 <th className="text-left">Role</th>
                 <th className="text-left">MOC</th>
                 <th className="text-left">Status</th>
+                <th className="text-left">2FA</th>
                 <th className="text-right">Actions</th>
               </tr>
             </thead>
@@ -108,6 +109,16 @@ export default function AdminDashboard() {
                   <td>
                     <span className={`text-[10px] px-2 py-0.5 rounded uppercase ${STATUS_STYLE[u.status] || ''}`}>{u.status}</span>
                   </td>
+                  <td>
+                    {u.mfaEnabled ? (
+                      <span title={(u.mfaDevices || []).map((d) => d.label).join(', ') || 'Biometric enrolled'}
+                        className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded bg-ghana-green/20 text-ghana-green">
+                        <Fingerprint size={11} /> On
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-slate-500">—</span>
+                    )}
+                  </td>
                   <td className="text-right whitespace-nowrap">
                     {u.status === 'pending' && (
                       <button onClick={() => adminApproveUser(u.id)} title="Approve"
@@ -122,6 +133,13 @@ export default function AdminDashboard() {
                       <button onClick={() => adminUpdateUser(u.id, { status: 'approved' })}
                         className="text-[11px] px-2 py-1 rounded bg-navy-700 hover:bg-navy-600 text-slate-200 mr-1">Enable</button>
                     )}
+                    {u.mfaEnabled && (
+                      <button onClick={() => { if (confirm(`Reset biometric 2FA for ${u.name}? They will re-enrol on next signup/login.`)) adminResetMfa(u.id); }}
+                        title="Reset 2FA (lost/replaced device)"
+                        className="text-[11px] px-2 py-1 rounded bg-navy-700 hover:bg-navy-600 text-slate-200 mr-1">
+                        Reset 2FA
+                      </button>
+                    )}
                     <button onClick={() => { if (confirm(`Delete ${u.name}?`)) adminDeleteUser(u.id); }}
                       disabled={u.id === user?.id}
                       className="text-[11px] px-2 py-1 rounded bg-red-500/20 hover:bg-red-500/30 text-red-300 disabled:opacity-30">
@@ -131,7 +149,7 @@ export default function AdminDashboard() {
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={6} className="text-center text-slate-500 py-8">No users.</td></tr>
+                <tr><td colSpan={7} className="text-center text-slate-500 py-8">No users.</td></tr>
               )}
             </tbody>
           </table>

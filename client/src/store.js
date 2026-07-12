@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { api, setToken, getToken } from './api.js';
 import { socket } from './socket.js';
 import { can as canDo } from './lib/roles.js';
+import { enrolBiometric, verifyBiometric } from './lib/webauthn.js';
 
 // Global application state: authentication, the live operating picture,
 // collaboration, track replay, and all socket event wiring.
@@ -12,6 +13,8 @@ export const useStore = create((set, get) => ({
   authChecked: false, // have we attempted token restore yet
   authError: null,
   signupMessage: null, // shown after a successful pending-approval signup
+  mfaChallenge: null, // { mfaTicket, options } — pending biometric step at login
+  enrollGrant: null, // short-lived grant to enrol biometrics right after signup
   users: [], // admin: full user directory
 
   // --- reference / identity ---
@@ -75,32 +78,76 @@ export const useStore = create((set, get) => ({
     set({ authChecked: true });
   },
 
+  // Sign-in, phase 1 (password). If the account has biometric 2FA enrolled the
+  // server returns a challenge instead of a token; we stash it and the Login
+  // screen prompts for the fingerprint/face check (completeMfaLogin).
   async login(email, password) {
     set({ authError: null });
     try {
-      const { token, user } = await api.login({ email, password });
-      setToken(token);
-      set({ user });
+      const res = await api.login({ email, password });
+      if (res.mfaRequired) {
+        set({ mfaChallenge: { mfaTicket: res.mfaTicket, options: res.options } });
+        return { mfaRequired: true };
+      }
+      setToken(res.token);
+      set({ user: res.user });
       await get().init();
+      return { mfaRequired: false };
     } catch (e) {
       set({ authError: e.message });
       throw e;
     }
   },
 
+  // Sign-in, phase 2 (biometric): drive the OS prompt and finish the session.
+  async completeMfaLogin() {
+    const challenge = get().mfaChallenge;
+    if (!challenge) throw new Error('no pending verification');
+    set({ authError: null });
+    try {
+      const { token, user } = await verifyBiometric(challenge);
+      setToken(token);
+      set({ user, mfaChallenge: null });
+      await get().init();
+    } catch (e) {
+      set({ authError: e.message });
+      throw e;
+    }
+  },
+  cancelMfa() { set({ mfaChallenge: null, authError: null }); },
+
   // Self-service signup creates a PENDING account — no token, no auto-login.
+  // The response carries a grant that lets the new user enrol biometrics before
+  // an administrator approves them.
   async register(body) {
     set({ authError: null, signupMessage: null });
     try {
       const res = await api.register(body);
-      set({ signupMessage: res.message || 'Account created and pending administrator approval.' });
+      set({
+        signupMessage: res.message || 'Account created and pending administrator approval.',
+        enrollGrant: res.enrollGrant || null,
+      });
       return res;
     } catch (e) {
       set({ authError: e.message });
       throw e;
     }
   },
-  clearSignupMessage() { set({ signupMessage: null }); },
+  clearSignupMessage() { set({ signupMessage: null, enrollGrant: null }); },
+
+  // Enrol a fingerprint/face credential. Uses the post-signup grant when set,
+  // otherwise the current session (adding another device from settings).
+  async enrollBiometricNow() {
+    set({ authError: null });
+    try {
+      await enrolBiometric(get().enrollGrant || undefined);
+      set({ enrollGrant: null });
+      return true;
+    } catch (e) {
+      set({ authError: e.message });
+      throw e;
+    }
+  },
 
   async logout() {
     try { await api.logout(); } catch { /* noop */ }
@@ -259,6 +306,7 @@ export const useStore = create((set, get) => ({
   async adminUpdateUser(id, patch) { await api.updateUser(id, patch); get().loadUsers(); get().refreshAudit(); },
   async adminDeleteUser(id) { await api.deleteUser(id); get().loadUsers(); get().refreshAudit(); },
   async adminCreateUser(body) { await api.createUser(body); get().loadUsers(); get().refreshAudit(); },
+  async adminResetMfa(id) { await api.resetMfa(id); get().loadUsers(); get().refreshAudit(); },
 
   // --- privileged actions (backend enforces; we also gate UI) ----------------
   async ackAlert(id) { await api.ackAlert(id); get().refreshAudit(); },

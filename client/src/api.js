@@ -38,7 +38,12 @@ export const api = {
   createUser: (body) => req('/users', { method: 'POST', body: JSON.stringify(body) }),
   updateUser: (id, body) => req(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   approveUser: (id) => req(`/users/${id}/approve`, { method: 'POST', body: '{}' }),
+  resetMfa: (id) => req(`/users/${id}/reset-mfa`, { method: 'POST', body: '{}' }),
   deleteUser: (id) => req(`/users/${id}`, { method: 'DELETE' }),
+  // biometric 2FA (WebAuthn) ceremonies
+  mfaRegisterOptions: (body) => req('/auth/webauthn/register/options', { method: 'POST', body: JSON.stringify(body || {}) }),
+  mfaRegisterVerify: (body) => req('/auth/webauthn/register/verify', { method: 'POST', body: JSON.stringify(body) }),
+  mfaLoginVerify: (body) => req('/auth/webauthn/login/verify', { method: 'POST', body: JSON.stringify(body) }),
   setSourceMode: (mode) => req('/source/mode', { method: 'POST', body: JSON.stringify({ mode }) }),
   overlays: () => req('/overlays'),
   createOverlay: (body) => req('/overlays', { method: 'POST', body: JSON.stringify(body) }),
