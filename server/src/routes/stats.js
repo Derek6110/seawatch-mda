@@ -44,6 +44,7 @@ router.get('/stats', (_req, res) => {
       liveVessels: liveCount,
       hasKey: !!config.aisStreamKey || !!config.marineTraffic.url || !!config.dataDocked.key,
       region: config.liveRegion,
+      bbox: config.liveBbox,
       center: [
         (config.liveBbox.minLat + config.liveBbox.maxLat) / 2,
         (config.liveBbox.minLon + config.liveBbox.maxLon) / 2,

@@ -150,7 +150,10 @@ export function stopLiveAis() {
   }
 }
 
-const MAX_LIVE = 1500; // safety cap so a wide subscription can't bloat the store
+// Cap the live picture so a busy subscription (e.g. the Dover Strait, which can
+// stream 1500+ contacts) stays smooth to render on the map. We keep the most
+// recently-reporting contacts, which is the freshest, most relevant picture.
+const MAX_LIVE = Number(process.env.MAX_LIVE_VESSELS) || 150;
 
 // Live vessels whose AIS has not refreshed within the going-dark threshold are
 // marked dark so the detection engine flags them just like simulated contacts.

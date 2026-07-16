@@ -48,6 +48,7 @@ export const useStore = create((set, get) => ({
   filters: { type: '', classification: '', flag: '', q: '', darkOnly: false },
   zoneVisibility: { eez: true, territorial: true, fishing: true, oil: true, anchorage: false, aoi: true },
   followMmsi: null,
+  mapFlyTo: null, // { bbox } | { center, zoom } — one-shot map recentre target
   basemap: 'dark', // dark | satellite | ocean
   adminOpen: false,
   selectedIncidentId: null, // open incident discussion thread
@@ -293,10 +294,19 @@ export const useStore = create((set, get) => ({
   },
 
   // --- data source switch (Simulation / Live / Hybrid) -----------------------
+  // On switching to a live picture, fly the map to the live-feed region (the
+  // AISStream demo area, away from Ghana); on returning to simulation, fly home.
   async setSourceMode(mode) {
     await api.setSourceMode(mode);
     await get().refreshStats();
+    const src = get().stats?.source;
+    if ((mode === 'live' || mode === 'hybrid') && src?.bbox) {
+      set({ mapFlyTo: { bbox: src.bbox } });
+    } else if (mode === 'sim') {
+      set({ mapFlyTo: { center: [4.6, -1.0], zoom: 7 } });
+    }
   },
+  clearMapFlyTo() { set({ mapFlyTo: null }); },
 
   // --- admin: user management ------------------------------------------------
   async loadUsers() {

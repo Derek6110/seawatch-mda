@@ -11,7 +11,18 @@ function parseLiveBbox(s, def) {
   return { minLat: p[0], minLon: p[1], maxLat: p[2], maxLon: p[3] };
 }
 
-const liveBbox = parseLiveBbox(process.env.LIVE_BBOX, { minLat: 1.4, minLon: -4.2, maxLat: 6.4, maxLon: 2.2 });
+// LIVE-feed subscription area. The free AISStream.io feed is a community network
+// of volunteer terrestrial receivers, so its coverage follows where those
+// receivers are — NOT simply where shipping is busiest. (The Strait of Hormuz,
+// for instance, is extremely busy but has no AISStream receivers, so it returns
+// nothing.) Its single densest, best-covered region is the Dover Strait /
+// southern North Sea — the world's busiest shipping lanes (Thames, Dover,
+// Rotterdam, Antwerp) AND saturated with receivers — which reliably yields
+// hundreds of live, named contacts. So, until a Ghana-covering commercial feed
+// (MarineTraffic etc.) is acquired, the live demo points there. Override with
+// LIVE_BBOX / LIVE_REGION to point it anywhere (e.g. back to the Gulf of Guinea
+// once a real Ghana feed is available).
+const liveBbox = parseLiveBbox(process.env.LIVE_BBOX, { minLat: 50.0, minLon: 0.0, maxLat: 53.5, maxLon: 5.5 });
 
 // MarineTraffic live-AIS provider (polling REST API — paid subscription).
 // Provide MARINETRAFFIC_API_KEY; the area endpoint below is built from the live
@@ -83,7 +94,7 @@ export const config = {
   // can be pointed anywhere via LIVE_BBOX="minLat,minLon,maxLat,maxLon" — useful
   // to demonstrate the live feed over a well-covered area (e.g. Singapore Strait).
   liveBbox,
-  liveRegion: process.env.LIVE_REGION || 'Gulf of Guinea',
+  liveRegion: process.env.LIVE_REGION || 'Dover Strait (English Channel)',
 
   // MarineTraffic provider settings (see marineTrafficCfg above).
   marineTraffic: marineTrafficCfg(),

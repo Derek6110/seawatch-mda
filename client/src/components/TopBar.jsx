@@ -62,6 +62,11 @@ export default function TopBar() {
           <option value="hybrid" disabled={!liveAvailable} className="bg-navy-850 text-white">Live + Sim{liveAvailable ? '' : ' (no key)'}</option>
         </select>
         {mode !== 'sim' && <span className={`text-[11px] font-mono ${srcActive ? 'text-ghana-green' : 'text-slate-300'}`}>· {liveVessels}</span>}
+        {mode !== 'sim' && stats?.source?.region && (
+          <span className="text-[10px] text-slate-400 whitespace-nowrap" title="Live AIS coverage area (demo region until a Ghana feed is acquired)">
+            · {stats.source.region}
+          </span>
+        )}
       </div>
 
       {/* Workstation MOC selector */}

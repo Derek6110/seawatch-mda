@@ -7,6 +7,7 @@ import { api } from '../api.js';
 import MapTools from './MapTools.jsx';
 
 const GHANA_CENTER = [4.6, -1.0];
+const GHANA_ZOOM = 7;
 
 const BASEMAPS = {
   dark: {
@@ -63,18 +64,28 @@ function BasemapLayer() {
   );
 }
 
-// When the live feed is pointed at a region away from Ghana (e.g. a coverage
-// demo over the Singapore Strait), recentre the map there once.
-function LiveRecenter() {
+// The live feed is pointed at a well-covered demo region away from Ghana (the
+// Dover Strait, until a Ghana-covering feed is acquired). Switching into
+// Live/Hybrid flies the map to that region so the real contacts are on screen;
+// returning to Simulation flies home to Ghana. Triggered deterministically by
+// the source switch (store.mapFlyTo), not by polling, so it fires immediately.
+function MapFlyController() {
   const map = useMap();
-  const source = useStore((s) => s.stats?.source);
-  const done = useRef(false);
+  const target = useStore((s) => s.mapFlyTo);
+  const clear = useStore((s) => s.clearMapFlyTo);
   useEffect(() => {
-    if (!done.current && source?.mode === 'live' && Array.isArray(source.center)) {
-      map.setView(source.center, 10);
-      done.current = true;
+    if (!target) return;
+    // Instant jump (animate:false). An animated fly is unreliable here — the live
+    // feed re-renders hundreds of markers every few seconds, which interrupts and
+    // cancels Leaflet's fly animation mid-flight, leaving the map where it was.
+    if (target.bbox) {
+      const b = target.bbox;
+      map.fitBounds([[b.minLat, b.minLon], [b.maxLat, b.maxLon]], { padding: [40, 40], animate: false });
+    } else if (Array.isArray(target.center)) {
+      map.setView(target.center, target.zoom || GHANA_ZOOM, { animate: false });
     }
-  }, [source, map]);
+    clear();
+  }, [target, map, clear]);
   return null;
 }
 
@@ -240,7 +251,7 @@ export default function MapView() {
         </Marker>
       ))}
       <FollowController />
-      <LiveRecenter />
+      <MapFlyController />
       <MapTools />
       <BasemapSwitcher />
     </MapContainer>
