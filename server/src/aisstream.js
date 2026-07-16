@@ -32,10 +32,22 @@ function typeFromAis(t) {
   return 'cargo';
 }
 
+function liveCount() {
+  let n = 0;
+  for (const v of store.vessels.values()) if (v.source === 'ais-live') n++;
+  return n;
+}
+
 function upsert(mmsi, patch) {
   let v = store.vessels.get(mmsi);
   const now = Date.now();
   if (!v) {
+    // Sticky cap: once we're tracking MAX_LIVE contacts, keep updating those but
+    // do NOT admit brand-new ones. This keeps the displayed set stable — a shown
+    // vessel is never dropped just because a newer contact arrived (which is what
+    // made vessels flicker in/out). Slots free up only as vessels age out
+    // (retention window), so the picture changes slowly and stays verifiable.
+    if (liveCount() >= MAX_LIVE) return;
     v = {
       mmsi, name: patch.name || `MMSI ${mmsi}`, callsign: patch.callsign || '',
       type: patch.type || 'cargo', flag: patch.flag || 'Unknown', isNavy: false,
@@ -150,26 +162,29 @@ export function stopLiveAis() {
   }
 }
 
-// Cap the live picture so a busy subscription (e.g. the Dover Strait, which can
-// stream 1500+ contacts) stays smooth to render on the map. We keep the most
-// recently-reporting contacts, which is the freshest, most relevant picture.
-const MAX_LIVE = Number(process.env.MAX_LIVE_VESSELS) || 150;
+// Maximum live contacts held/rendered at once (sticky — see upsert). Sized so a
+// busy subscription stays smooth on the map. Override with MAX_LIVE_VESSELS.
+const MAX_LIVE = Number(process.env.MAX_LIVE_VESSELS) || 220;
 
-// Live vessels whose AIS has not refreshed within the going-dark threshold are
-// marked dark so the detection engine flags them just like simulated contacts.
-// Eviction happens well past the gone-dark tier so a silent vessel is flagged
-// (going dark at 2h, gone dark at 3h) before it is dropped from the picture.
+// Retention window: a live contact stays on the picture for this long after its
+// LAST AIS report before being dropped. This is what makes the feed STABLE — a
+// vessel does not blink out between position reports (which can be seconds to a
+// few minutes apart); it only disappears once it has genuinely been silent for
+// the full window (left the area / stopped transmitting), matching what a real
+// MDA tool shows. Override with LIVE_RETENTION_MIN (minutes).
+const RETENTION_MS = (Number(process.env.LIVE_RETENTION_MIN) || 10) * 60 * 1000;
+
 export function ageLiveVessels() {
   const now = Date.now();
-  const gapMs = config.detection.goingDarkMinutes * 60 * 1000;
-  const staleMs = Math.max(6 * 60 * 60 * 1000, config.detection.goneDarkMinutes * 2 * 60 * 1000);
   const live = [];
   for (const v of store.vessels.values()) {
     if (v.source !== 'ais-live') continue;
-    if (now - v.lastReport > gapMs) v.aisOn = false;
-    if (now - v.lastReport > staleMs) { store.vessels.delete(v.mmsi); continue; }
+    // Drop only contacts silent longer than the retention window.
+    if (now - v.lastReport > RETENTION_MS) { store.vessels.delete(v.mmsi); continue; }
     live.push(v);
   }
+  // Pure safety valve: should never trigger given the sticky ingestion cap, but
+  // guards against unbounded growth. Drops the STALEST first (never a fresh one).
   if (live.length > MAX_LIVE) {
     live.sort((a, b) => a.lastReport - b.lastReport)
       .slice(0, live.length - MAX_LIVE)

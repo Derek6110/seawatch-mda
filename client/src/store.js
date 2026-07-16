@@ -176,6 +176,12 @@ export const useStore = create((set, get) => ({
       currentMoc,
       currentOperator: { name: user?.name || 'Operator', role: user?.role },
     });
+    // If the app loads while already in a live picture (e.g. a page refresh
+    // mid-demo), centre the map on the live-feed region so contacts are on screen.
+    const src = stats?.source;
+    if ((src?.mode === 'live' || src?.mode === 'hybrid') && src?.bbox) {
+      set({ mapFlyTo: { bbox: src.bbox } });
+    }
     if (get().can('viewAudit')) get().refreshAudit();
     get().wireSocket();
   },

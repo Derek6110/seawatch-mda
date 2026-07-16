@@ -22,7 +22,7 @@ function parseLiveBbox(s, def) {
 // (MarineTraffic etc.) is acquired, the live demo points there. Override with
 // LIVE_BBOX / LIVE_REGION to point it anywhere (e.g. back to the Gulf of Guinea
 // once a real Ghana feed is available).
-const liveBbox = parseLiveBbox(process.env.LIVE_BBOX, { minLat: 50.0, minLon: 0.0, maxLat: 53.5, maxLon: 5.5 });
+const liveBbox = parseLiveBbox(process.env.LIVE_BBOX, { minLat: 51.0, minLon: 1.0, maxLat: 52.3, maxLon: 4.6 });
 
 // MarineTraffic live-AIS provider (polling REST API — paid subscription).
 // Provide MARINETRAFFIC_API_KEY; the area endpoint below is built from the live
