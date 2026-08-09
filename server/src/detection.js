@@ -12,6 +12,10 @@ import { ZONES } from './seed.js';
 
 const D = config.detection;
 
+// Zones where two slow vessels lying close together is normal business rather
+// than a suspected illicit ship-to-ship transfer.
+const STS_EXCLUDED_ZONES = ['anchorage', 'port'];
+
 // Human-friendly gap duration: "6h 12m", "45m", "1h".
 function fmtGap(min) {
   const m = Math.round(min);
@@ -147,18 +151,23 @@ export function runDetection(io) {
   }
 
   // Rule 5 — ship-to-ship rendezvous: two vessels within stsProximityNm
-  // (0.3 NM), BOTH under stsSpeedKn (1.2 kn), offshore and outside any
-  // designated anchorage. Pre-filter to slow, non-navy contacts so the pairwise
-  // check stays cheap even with a large live dataset.
-  const slow = vessels.filter((v) => !v.isNavy && v.speed < D.stsSpeedKn);
+  // (0.3 NM), BOTH under stsSpeedKn (1.2 kn), offshore and clear of any
+  // designated anchorage OR port. Vessels lying alongside inside a port basin,
+  // or waiting in a designated anchorage, are doing routine cargo/bunkering
+  // work — not an illicit transfer — so both are excluded. The zone test is done
+  // once per vessel in this pre-filter (not per pair), which also keeps the
+  // pairwise check cheap on a large live dataset.
+  const slow = vessels.filter(
+    (v) => !v.isNavy
+      && v.speed < D.stsSpeedKn
+      && zonesContaining(v, STS_EXCLUDED_ZONES).length === 0
+  );
   for (let i = 0; i < slow.length; i++) {
     for (let j = i + 1; j < slow.length; j++) {
       const a = slow[i];
       const b = slow[j];
       const d = distanceNm(a, b);
       if (d < D.stsProximityNm) {
-        // Skip if either vessel sits in a designated anchorage.
-        if (zonesContaining(a, ['anchorage']).length || zonesContaining(b, ['anchorage']).length) continue;
         a.flags.push('sts'); b.flags.push('sts');
         const alert = emit(io, {
           type: 'sts',
@@ -167,7 +176,7 @@ export function runDetection(io) {
           vesselName: `${a.name} ↔ ${b.name}`,
           lat: (a.lat + b.lat) / 2, lon: (a.lon + b.lon) / 2,
           title: 'Possible ship-to-ship transfer',
-          detail: `${a.name} and ${b.name} ${d.toFixed(2)} NM apart at under ${D.stsSpeedKn} kn, offshore and outside any anchorage — possible illicit STS / fuel transfer.`,
+          detail: `${a.name} and ${b.name} ${d.toFixed(2)} NM apart at under ${D.stsSpeedKn} kn, offshore and clear of any designated port or anchorage — possible illicit STS / fuel transfer.`,
         });
         if (alert) newAlerts.push(alert);
       }

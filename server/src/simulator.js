@@ -145,7 +145,9 @@ function startSpoof(v) {
 // drifting below the STS speed threshold, clear of any designated anchorage.
 function startSts(a, b) {
   if (!a || !b || a.mmsi === b.mmsi) return;
-  if (inAnyZoneOfKind(a, ['anchorage'])) return;
+  // Stage the rendezvous offshore — inside a port or anchorage it is routine
+  // work and (correctly) would not raise an STS alert.
+  if (inAnyZoneOfKind(a, ['anchorage', 'port'])) return;
   const gapNm = 0.1 + Math.random() * 0.15; // 0.10–0.25 NM apart (< 0.3 NM rule)
   const pos = project(a, Math.random() * 360, gapNm);
   b.lon = pos.lon;

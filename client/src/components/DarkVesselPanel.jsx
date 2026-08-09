@@ -8,7 +8,7 @@ const METHODS = [
   { key: 'gone-dark', label: 'Gone Dark', desc: 'AIS silent over 3 hours' },
   { key: 'spoofing', label: 'Spoofing', desc: 'Implausible / falsified position' },
   { key: 'loitering', label: 'Loitering', desc: 'Slow drift in sensitive zone' },
-  { key: 'sts', label: 'STS', desc: '<0.3 NM apart, <1.2 kn, offshore & outside anchorages' },
+  { key: 'sts', label: 'STS', desc: '<0.3 NM apart, <1.2 kn, offshore & clear of ports/anchorages' },
   { key: 'zone-violation', label: 'Zone Breach', desc: 'Inside restricted area' },
 ];
 
@@ -49,7 +49,7 @@ export default function DarkVesselPanel() {
 
       <div className="px-3 py-1.5 text-[10px] text-slate-500 leading-snug border-b border-navy-700">
         Going Dark = AIS silent 2–3 h · Gone Dark = over 3 h · STS = pair &lt;0.3 NM at &lt;1.2 kn
-        offshore, outside anchorages. Correlate with radar &amp; SAT imagery to resolve contacts.
+        offshore, clear of ports &amp; anchorages. Correlate with radar &amp; SAT imagery to resolve contacts.
       </div>
 
       <div className="flex-1 overflow-y-auto p-2 space-y-2">

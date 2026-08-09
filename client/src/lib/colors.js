@@ -45,6 +45,7 @@ export const ZONE_STYLE = {
   fishing: { color: '#2ecc71', weight: 1, dash: null, fill: 0.08 },
   oil: { color: '#ff9f1c', weight: 1, dash: null, fill: 0.18 },
   anchorage: { color: '#5dade2', weight: 1, dash: '2 4', fill: 0.1 },
+  port: { color: '#9b8cff', weight: 1.2, dash: null, fill: 0.16 },
   aoi: { color: '#e74c3c', weight: 1.2, dash: '8 4', fill: 0.08 },
 };
 

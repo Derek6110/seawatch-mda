@@ -9,6 +9,7 @@ const ZONE_TOGGLES = [
   ['fishing', 'Fishing Zones'],
   ['oil', 'Oil Fields'],
   ['anchorage', 'Anchorages'],
+  ['port', 'Ports'],
   ['aoi', 'Areas of Interest'],
 ];
 

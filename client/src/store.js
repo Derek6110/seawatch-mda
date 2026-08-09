@@ -46,7 +46,7 @@ export const useStore = create((set, get) => ({
   selectedMmsi: null,
   rightTab: 'alerts',
   filters: { type: '', classification: '', flag: '', q: '', darkOnly: false },
-  zoneVisibility: { eez: true, territorial: true, fishing: true, oil: true, anchorage: false, aoi: true },
+  zoneVisibility: { eez: true, territorial: true, fishing: true, oil: true, anchorage: false, port: false, aoi: true },
   followMmsi: null,
   mapFlyTo: null, // { bbox } | { center, zoom } — one-shot map recentre target
   basemap: 'dark', // dark | satellite | ocean

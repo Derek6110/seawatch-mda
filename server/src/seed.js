@@ -212,6 +212,22 @@ export const ZONES = [
     polygon: box(-1.55, 4.05, 0.12, 0.1),
   },
   {
+    id: 'zone-tema-port',
+    name: 'Tema Port',
+    kind: 'port',
+    color: '#9b8cff',
+    description: 'Designated port limits — Tema harbour basin & berths.',
+    polygon: box(0.008, 5.627, 0.022, 0.016),
+  },
+  {
+    id: 'zone-takoradi-port',
+    name: 'Takoradi Port',
+    kind: 'port',
+    color: '#9b8cff',
+    description: 'Designated port limits — Takoradi harbour basin & berths.',
+    polygon: box(-1.7415, 4.8845, 0.016, 0.012),
+  },
+  {
     id: 'zone-tema-anch',
     name: 'Tema Anchorage',
     kind: 'anchorage',
