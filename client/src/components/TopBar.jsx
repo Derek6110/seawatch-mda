@@ -67,6 +67,12 @@ export default function TopBar() {
             · {stats.source.region}
           </span>
         )}
+        {mode !== 'sim' && liveConnected && stats?.source?.providers?.aisstream?.streaming === false && (
+          <span className="text-[10px] text-threat-medium whitespace-nowrap font-semibold"
+            title="AISStream is connected but not delivering data — the API key is likely rate-limited or exhausted. Generate a fresh key at aisstream.io.">
+            · no data (check key)
+          </span>
+        )}
       </div>
 
       {/* Workstation MOC selector */}
