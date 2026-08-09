@@ -69,6 +69,25 @@ function BasemapLayer() {
 // Live/Hybrid flies the map to that region so the real contacts are on screen;
 // returning to Simulation flies home to Ghana. Triggered deterministically by
 // the source switch (store.mapFlyTo), not by polling, so it fires immediately.
+// When a side panel collapses/expands the map container changes width. Leaflet
+// does not detect that on its own, so the newly-exposed strip renders as a blank
+// dark rectangle until told. invalidateSize() recomputes the size and loads the
+// missing tiles. A short delay lets the flex layout settle first.
+function PanelResizeController() {
+  const map = useMap();
+  const leftCollapsed = useStore((s) => s.leftCollapsed);
+  const rightCollapsed = useStore((s) => s.rightCollapsed);
+  useEffect(() => {
+    // Fire at several points so we catch the reflow whether it settles instantly
+    // (collapse to a rail) or a frame later (expand mounts a full panel).
+    const invalidate = () => map.invalidateSize({ animate: false });
+    const raf = requestAnimationFrame(invalidate);
+    const timers = [80, 200, 400].map((ms) => setTimeout(invalidate, ms));
+    return () => { cancelAnimationFrame(raf); timers.forEach(clearTimeout); };
+  }, [leftCollapsed, rightCollapsed, map]);
+  return null;
+}
+
 function MapFlyController() {
   const map = useMap();
   const target = useStore((s) => s.mapFlyTo);
@@ -252,6 +271,7 @@ export default function MapView() {
       ))}
       <FollowController />
       <MapFlyController />
+      <PanelResizeController />
       <MapTools />
       <BasemapSwitcher />
     </MapContainer>
