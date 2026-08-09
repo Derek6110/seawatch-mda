@@ -2,7 +2,7 @@
 import { Router } from 'express';
 import { store, listVessels } from '../store.js';
 import { config } from '../config.js';
-import { isLiveConnected } from '../aisstream.js';
+import { isLiveConnected, isLiveStreaming } from '../aisstream.js';
 import { isMtConnected } from '../marinetraffic.js';
 import { isDdConnected, ddStatus } from '../datadocked.js';
 import { dbMode } from '../db.js';
@@ -50,7 +50,7 @@ router.get('/stats', (_req, res) => {
         (config.liveBbox.minLon + config.liveBbox.maxLon) / 2,
       ],
       providers: {
-        aisstream: { configured: !!config.aisStreamKey, connected: aisConnected },
+        aisstream: { configured: !!config.aisStreamKey, connected: aisConnected, streaming: isLiveStreaming() },
         marinetraffic: { configured: !!config.marineTraffic.url, connected: mtConnected, vessels: mtCount },
         datadocked: {
           configured: !!config.dataDocked.key, connected: ddConnected, vessels: ddCount,

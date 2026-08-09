@@ -11,13 +11,25 @@ import { config } from './config.js';
 import { store } from './store.js';
 
 const TRACK_LEN = 30;
+// If the socket is "connected" but no message arrives for this long, treat the
+// stream as dead and force a reconnect. AISStream can stop delivering without
+// closing the socket (e.g. a competing connection on the same free-tier key, or
+// an upstream stall), which would otherwise leave us connected-but-empty forever.
+const STALE_MS = Number(process.env.AISSTREAM_STALE_SEC || 45) * 1000;
+
 let ws = null;
 let connected = false;
 let reconnectTimer = null;
+let watchdogTimer = null;
+let lastMessageAt = 0;
 let stopped = false;
 
 export function isLiveConnected() {
   return connected;
+}
+// True only when connected AND actually receiving data recently.
+export function isLiveStreaming() {
+  return connected && lastMessageAt > 0 && Date.now() - lastMessageAt < STALE_MS;
 }
 
 function typeFromAis(t) {
@@ -124,8 +136,10 @@ export function startLiveAis() {
   const connect = () => {
     if (stopped) return;
     ws = new WebSocket('wss://stream.aisstream.io/v0/stream');
+    lastMessageAt = Date.now(); // grace period from connect attempt
     ws.on('open', () => {
       connected = true;
+      lastMessageAt = Date.now();
       console.log(`  AISStream: connected — streaming live AIS for ${config.liveRegion}.`);
       ws.send(JSON.stringify({
         APIKey: config.aisStreamKey,
@@ -134,7 +148,10 @@ export function startLiveAis() {
         FilterMessageTypes: ['PositionReport', 'StandardClassBPositionReport', 'ExtendedClassBPositionReport', 'ShipStaticData'],
       }));
     });
-    ws.on('message', handleMessage);
+    ws.on('message', (raw) => {
+      lastMessageAt = Date.now();
+      handleMessage(raw);
+    });
     ws.on('close', () => {
       connected = false;
       console.warn('  AISStream: disconnected — retrying in 5s.');
@@ -147,6 +164,20 @@ export function startLiveAis() {
     });
   };
   connect();
+
+  // Watchdog: if we appear connected but have gone silent past STALE_MS, the
+  // stream is dead — force a fresh reconnect (terminate → 'close' → reconnect).
+  clearInterval(watchdogTimer);
+  watchdogTimer = setInterval(() => {
+    if (stopped || !ws) return;
+    const openish = connected || ws.readyState === 0; // OPEN or CONNECTING
+    if (openish && Date.now() - lastMessageAt > STALE_MS) {
+      console.warn(`  AISStream: no data for ${Math.round((Date.now() - lastMessageAt) / 1000)}s — forcing reconnect.`);
+      lastMessageAt = Date.now(); // reset so we don't loop before the reconnect settles
+      try { ws.terminate(); } catch { try { ws.close(); } catch { /* noop */ } }
+    }
+  }, 15000);
+
   return true;
 }
 
@@ -154,9 +185,11 @@ export function startLiveAis() {
 export function stopLiveAis() {
   stopped = true;
   clearTimeout(reconnectTimer);
+  clearInterval(watchdogTimer);
   try { ws?.close(); } catch { /* noop */ }
   ws = null;
   connected = false;
+  lastMessageAt = 0;
   for (const v of [...store.vessels.values()]) {
     if (v.source === 'ais-live') store.vessels.delete(v.mmsi);
   }
