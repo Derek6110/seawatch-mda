@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Search, Layers, Filter, Ship } from 'lucide-react';
+import { Search, Layers, Filter, Ship, ChevronLeft } from 'lucide-react';
 import { useStore } from '../store.js';
 import { TYPE_LABELS, CLASS_COLORS, vesselColor } from '../lib/colors.js';
 
@@ -42,7 +42,7 @@ function VesselRow({ v, selected, onClick }) {
 
 export default function Sidebar() {
   const { vessels, filters, setFilter, selectedMmsi, selectVessel,
-    zoneVisibility, toggleZone } = useStore();
+    zoneVisibility, toggleZone, toggleLeft } = useStore();
 
   const flags = useMemo(
     () => Array.from(new Set(vessels.map((v) => v.flag))).sort(),
@@ -67,6 +67,16 @@ export default function Sidebar() {
 
   return (
     <aside className="w-72 shrink-0 bg-navy-900 border-r border-navy-700 flex flex-col">
+      {/* Header + collapse */}
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-navy-700">
+        <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-slate-400">
+          <Filter size={12} /> Filters &amp; Contacts
+        </span>
+        <button onClick={toggleLeft} title="Collapse panel"
+          className="p-1 rounded text-slate-400 hover:text-ghana-gold hover:bg-navy-800">
+          <ChevronLeft size={16} />
+        </button>
+      </div>
       {/* Search */}
       <div className="p-3 border-b border-navy-700">
         <div className="relative">

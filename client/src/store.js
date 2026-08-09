@@ -50,6 +50,8 @@ export const useStore = create((set, get) => ({
   followMmsi: null,
   mapFlyTo: null, // { bbox } | { center, zoom } — one-shot map recentre target
   basemap: 'dark', // dark | satellite | ocean
+  leftCollapsed: false, // filter/sidebar panel collapsed
+  rightCollapsed: false, // live-threat/intelligence panel collapsed
   adminOpen: false,
   selectedIncidentId: null, // open incident discussion thread
 
@@ -274,6 +276,8 @@ export const useStore = create((set, get) => ({
   toggleZone(kind) { set((s) => ({ zoneVisibility: { ...s.zoneVisibility, [kind]: !s.zoneVisibility[kind] } })); },
   setFollow(mmsi) { set((s) => ({ followMmsi: s.followMmsi === mmsi ? null : mmsi })); },
   setBasemap(b) { set({ basemap: b }); },
+  toggleLeft() { set((s) => ({ leftCollapsed: !s.leftCollapsed })); },
+  toggleRight() { set((s) => ({ rightCollapsed: !s.rightCollapsed })); },
   setAdminOpen(v) { set({ adminOpen: v }); if (v) get().loadUsers(); },
 
   // --- replay ----------------------------------------------------------------
