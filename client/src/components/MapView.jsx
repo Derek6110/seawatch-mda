@@ -77,14 +77,25 @@ function PanelResizeController() {
   const map = useMap();
   const leftCollapsed = useStore((s) => s.leftCollapsed);
   const rightCollapsed = useStore((s) => s.rightCollapsed);
+  const invalidate = () => map.invalidateSize({ animate: false });
+
+  // A ResizeObserver catches ANY container size change (panel toggle, window
+  // resize) the instant it happens on a real browser.
   useEffect(() => {
-    // Fire at several points so we catch the reflow whether it settles instantly
-    // (collapse to a rail) or a frame later (expand mounts a full panel).
-    const invalidate = () => map.invalidateSize({ animate: false });
-    const raf = requestAnimationFrame(invalidate);
-    const timers = [80, 200, 400].map((ms) => setTimeout(invalidate, ms));
-    return () => { cancelAnimationFrame(raf); timers.forEach(clearTimeout); };
-  }, [leftCollapsed, rightCollapsed, map]);
+    const ro = new ResizeObserver(() => invalidate());
+    ro.observe(map.getContainer());
+    return () => ro.disconnect();
+  }, [map]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Belt-and-braces: also invalidate on the collapse-state change itself, fired
+  // over several frames so we catch the reflow whether it settles instantly (rail
+  // collapse) or a frame later (a full panel mounting on expand). This path uses
+  // timers, so it works even where the ResizeObserver is throttled.
+  useEffect(() => {
+    const timers = [0, 60, 180, 360].map((ms) => setTimeout(invalidate, ms));
+    return () => timers.forEach(clearTimeout);
+  }, [leftCollapsed, rightCollapsed]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return null;
 }
 
@@ -199,7 +210,7 @@ function VesselMarkers({ onSelect }) {
       <Tooltip direction="top" offset={[0, -8]}>
         <span className="font-mono text-xs">
           {v.name} {v.flag ? `· ${v.flag}` : ''}
-          {v.source === 'radar' ? ' · RADAR' : v.source === 'sat' ? ' · SAT' : ''}
+          {v.source === 'radar' ? ' · RADAR' : v.source === 'sat' ? ' · SAT' : v.provider === 'shore' ? ' · SHORE STN' : ''}
           {typeof v.risk === 'number' ? ` · risk ${v.risk}` : ''}
           {v.flags?.length ? ` · ⚠ ${v.flags.join(', ')}` : ''}
         </span>

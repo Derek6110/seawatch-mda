@@ -12,17 +12,21 @@ let mode = 'sim';
 
 export function getMode() { return mode; }
 
-// Live picture is available if any real-AIS provider is configured.
+// Live picture is available if any real-AIS provider is configured. The shore
+// station (Navy receiver pushing to /api/ingest/nmea) counts: it is push-based,
+// so "configured" simply means an INGEST_KEY is set.
 export function liveAvailable() {
-  return !!config.aisStreamKey || !!config.marineTraffic.url || !!config.dataDocked.key;
+  return !!config.aisStreamKey || !!config.marineTraffic.url || !!config.dataDocked.key || !!config.ingestKey;
 }
 
 // Start every configured live provider; returns true if at least one started.
+// The shore station needs no starting — the forwarder pushes whenever we are in
+// a live mode — but it still counts as an available feed.
 function startLiveFeeds() {
   const a = startLiveAis();          // AISStream (WebSocket) — no-op without key
   const m = startMarineTraffic();    // MarineTraffic (polling) — no-op without URL
   const d = startDataDocked();       // Data Docked (polling) — no-op without key
-  return a || m || d;
+  return a || m || d || !!config.ingestKey;
 }
 function stopLiveFeeds() {
   stopLiveAis();          // closes stream + drops live contacts

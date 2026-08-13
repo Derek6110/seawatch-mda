@@ -18,3 +18,6 @@ server/data/
 presentation/*.pptx
 presentation/*.docx
 presentation/crest.png
+
+# Private working notes (vendor meetings etc.)
+meeting-prep/

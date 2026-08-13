@@ -102,6 +102,11 @@ export const config = {
   // Data Docked provider settings (see dataDockedCfg above).
   dataDocked: dataDockedCfg(),
 
+  // Shore-station raw-AIS ingest: a Navy AIS receiver site pushes NMEA to
+  // POST /api/ingest/nmea authenticated with this key (unset = ingest disabled).
+  ingestKey: process.env.INGEST_KEY || '',
+  shoreSite: process.env.SHORE_SITE || 'Tema',
+
   // Number of simulated vessels for the demo dataset.
   vesselCount: Number(process.env.VESSEL_COUNT) || 90,
 

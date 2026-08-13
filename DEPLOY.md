@@ -123,3 +123,26 @@ authenticator (Windows Hello, Touch ID, Face ID, Android biometric). It needs
   enrolled on. If a user loses/replaces a device, a **Director** clears their
   enrolment with **Reset 2FA** in Administration → User Accounts; the user then
   re-enrols on next signup/login.
+
+---
+
+## Shore-station raw AIS (Navy receiver at Tema)
+SeaWatch can ingest raw NMEA directly from a Navy AIS receiver — a sovereign
+terrestrial feed with no per-message cost. See `forwarder/README.md` for the
+receiver-site setup (USB serial or UDP → HTTPS push).
+
+Server env vars:
+- `INGEST_KEY` — shared secret authenticating the receiver site's pushes to
+  `POST /api/ingest/nmea` (unset = ingest disabled). Generate a long random
+  string and use the same value in the forwarder's `--key`.
+- `SHORE_SITE` — label for the site (default `Tema`).
+- `SHORE_MAX_VESSELS` — cap on shore contacts (default 300).
+
+Once the shore feed is live, point the live view back at Ghana:
+- `LIVE_BBOX=1.4,-4.2,6.4,2.2`
+- `LIVE_REGION=Gulf of Guinea — Tema shore station`
+- `DATA_SOURCE=hybrid` (or `live` for a real-data-only picture)
+
+Note: ingest is accepted only in Live/Hybrid mode; in Simulation the forwarder
+stands by automatically. For a genuine operational trial use LIVE mode so no
+simulated vessels appear in Ghana waters alongside real ones.

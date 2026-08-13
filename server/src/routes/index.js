@@ -7,6 +7,7 @@ import collaboration from './collaboration.js';
 import stats from './stats.js';
 import source from './source.js';
 import overlays from './overlays.js';
+import ingest from './ingest.js';
 
 const api = Router();
 
@@ -19,5 +20,6 @@ api.use(collaboration);
 api.use(stats);
 api.use(source);
 api.use(overlays);
+api.use(ingest);
 
 export default api;

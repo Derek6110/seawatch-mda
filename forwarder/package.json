@@ -1,0 +1,13 @@
+{
+  "name": "seawatch-forwarder",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Reads raw NMEA from an AIS receiver (USB serial or UDP) and forwards it to the SeaWatch server.",
+  "main": "forwarder.js",
+  "scripts": {
+    "start": "node forwarder.js"
+  },
+  "dependencies": {
+    "serialport": "^12.0.0"
+  }
+}

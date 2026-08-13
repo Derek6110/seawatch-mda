@@ -5,6 +5,7 @@ import { config } from '../config.js';
 import { isLiveConnected, isLiveStreaming } from '../aisstream.js';
 import { isMtConnected } from '../marinetraffic.js';
 import { isDdConnected, ddStatus } from '../datadocked.js';
+import { isShoreConnected, shoreStatus } from '../shorestation.js';
 import { dbMode } from '../db.js';
 
 const router = Router();
@@ -27,6 +28,7 @@ router.get('/stats', (_req, res) => {
   const aisConnected = isLiveConnected();
   const mtConnected = isMtConnected();
   const ddConnected = isDdConnected();
+  const shConnected = isShoreConnected();
   res.json({
     totalVessels: vessels.length,
     darkVessels: dark.length,
@@ -40,9 +42,9 @@ router.get('/stats', (_req, res) => {
     friendlyUnits: vessels.filter((v) => v.isNavy).length,
     source: {
       mode: config.dataSource,
-      live: aisConnected || mtConnected || ddConnected,
+      live: aisConnected || mtConnected || ddConnected || shConnected,
       liveVessels: liveCount,
-      hasKey: !!config.aisStreamKey || !!config.marineTraffic.url || !!config.dataDocked.key,
+      hasKey: !!config.aisStreamKey || !!config.marineTraffic.url || !!config.dataDocked.key || !!config.ingestKey,
       region: config.liveRegion,
       bbox: config.liveBbox,
       center: [
@@ -56,6 +58,7 @@ router.get('/stats', (_req, res) => {
           configured: !!config.dataDocked.key, connected: ddConnected, vessels: ddCount,
           outOfCredits: ddStatus().outOfCredits, lastError: ddStatus().lastError,
         },
+        shore: shoreStatus(),
       },
     },
     // Persistence backend: 'pg' (durable Postgres) or 'file' (ephemeral).
