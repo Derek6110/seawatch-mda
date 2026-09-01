@@ -150,8 +150,16 @@ export class AivdmDecoder {
   }
 
   push(rawLine) {
-    const line = String(rawLine || '').trim();
-    if (!line.startsWith('!AIVDM') && !line.startsWith('!AIVDO')) return null;
+    let line = String(rawLine || '').trim();
+    // Strip an NMEA 4.0 TAG block if present: \s:STATION,c:TIMESTAMP*CS\!AIVDM,...
+    // Many receivers and feeds prepend these to carry source/timestamp metadata.
+    if (line.startsWith('\\')) {
+      const end = line.indexOf('\\', 1);
+      if (end === -1) return null;
+      line = line.slice(end + 1).trim();
+    }
+    // Accept the common talker IDs: AI (mobile), AB/BS (base station), AN, AR, AD.
+    if (!/^![A-Z]{2}VD[MO],/.test(line)) return null;
     if (!checksumOk(line)) return null;
     const f = line.split(',');
     if (f.length < 7) return null;

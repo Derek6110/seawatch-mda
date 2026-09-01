@@ -114,16 +114,50 @@ function MapFlyController() {
   const clear = useStore((s) => s.clearMapFlyTo);
   useEffect(() => {
     if (!target) return;
+    let cancelled = false;
+    let timer = 0;
+    let tries = 0;
+
     // Instant jump (animate:false). An animated fly is unreliable here — the live
     // feed re-renders hundreds of markers every few seconds, which interrupts and
     // cancels Leaflet's fly animation mid-flight, leaving the map where it was.
-    if (target.bbox) {
-      const b = target.bbox;
-      map.fitBounds([[b.minLat, b.minLon], [b.maxLat, b.maxLon]], { padding: [40, 40], animate: false });
-    } else if (Array.isArray(target.center)) {
-      map.setView(target.center, target.zoom || GHANA_ZOOM, { animate: false });
-    }
-    clear();
+    //
+    // The recentre can also fire before the map container has been laid out.
+    // Fitting a whole region into a ~zero-size viewport makes Leaflet choose its
+    // maximum zoom, landing on a few metres of empty sea with every contact
+    // off-screen — so only fit once the container has a real size.
+    const apply = () => {
+      if (cancelled) return;
+      const size = map.getSize();
+      if (size.x < 50 || size.y < 50) {
+        // Not laid out yet: poll briefly, and let the observer below catch it if
+        // the layout takes longer than that.
+        if (tries < 25) {
+          tries += 1;
+          timer = setTimeout(apply, 100);
+        }
+        return;
+      }
+      if (target.bbox) {
+        const b = target.bbox;
+        // maxZoom caps the fit: a regional box should never zoom past ~12, which
+        // also stops any degenerate bounds from blowing the view up to max zoom.
+        map.fitBounds([[b.minLat, b.minLon], [b.maxLat, b.maxLon]], {
+          padding: [40, 40], animate: false, maxZoom: 12,
+        });
+      } else if (Array.isArray(target.center)) {
+        map.setView(target.center, target.zoom || GHANA_ZOOM, { animate: false });
+      }
+      cancelled = true; // this target is done; ignore any late observer callbacks
+      clear();
+    };
+
+    // Fires the moment the container gains a real size, however long that takes.
+    const ro = new ResizeObserver(() => apply());
+    ro.observe(map.getContainer());
+    apply();
+
+    return () => { cancelled = true; clearTimeout(timer); ro.disconnect(); };
   }, [target, map, clear]);
   return null;
 }
