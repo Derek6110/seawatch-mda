@@ -9,18 +9,24 @@ import MapTools from './MapTools.jsx';
 const GHANA_CENTER = [4.6, -1.0];
 const GHANA_ZOOM = 7;
 
+// Tile sources must be key-free: CARTO began requiring an API key for its free
+// basemaps and now stamps "API KEY REQUIRED" across the tiles, so the dark
+// tactical basemap uses Esri's Dark Gray Canvas instead (same provider as the
+// satellite and ocean layers). maxZoom is per-service — requesting deeper than a
+// service publishes returns blank tiles.
 const BASEMAPS = {
   dark: {
-    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    attribution: '&copy; OpenStreetMap &copy; CARTO', subdomains: 'abcd',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Tiles &copy; Esri — HERE, Garmin, OpenStreetMap contributors',
+    subdomains: '', maxZoom: 16,
   },
   satellite: {
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    attribution: 'Imagery &copy; Esri, Maxar, Earthstar Geographics', subdomains: '',
+    attribution: 'Imagery &copy; Esri, Maxar, Earthstar Geographics', subdomains: '', maxZoom: 19,
   },
   ocean: {
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}',
-    attribution: 'Tiles &copy; Esri — GEBCO, NOAA', subdomains: '',
+    attribution: 'Tiles &copy; Esri — GEBCO, NOAA', subdomains: '', maxZoom: 13,
   },
 };
 
@@ -58,9 +64,12 @@ function shipIcon(v, selected) {
 function BasemapLayer() {
   const basemap = useStore((s) => s.basemap);
   const b = BASEMAPS[basemap] || BASEMAPS.dark;
+  // maxNativeZoom = deepest zoom the service actually publishes; Leaflet upscales
+  // beyond it rather than rendering blank tiles, so the operator can always zoom
+  // in on a contact regardless of which basemap is selected.
   return (
     <TileLayer key={basemap} url={b.url} attribution={b.attribution}
-      subdomains={b.subdomains || ''} maxZoom={19} />
+      subdomains={b.subdomains || ''} maxNativeZoom={b.maxZoom} maxZoom={19} />
   );
 }
 
