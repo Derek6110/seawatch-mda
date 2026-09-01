@@ -28,7 +28,8 @@ const CFG = {
   serialPort: arg('port', process.env.SERIAL_PORT || ''),
   baud: Number(arg('baud', process.env.BAUD || 38400)),
   udpPort: Number(arg('udp', process.env.UDP_PORT || 0)),
-  raw: args.includes('--raw'), // print raw receiver output for diagnosis
+  raw: args.includes('--raw'),   // print raw receiver output for diagnosis
+  scan: args.includes('--scan'), // try standard baud rates and report which works
 };
 
 if (!CFG.key) {
@@ -130,6 +131,48 @@ if (CFG.serialPort) {
     console.error('ERROR: serialport package not installed. Run `npm install` in this folder first.');
     process.exit(1);
   }
+  // --scan: try the standard AIS/NMEA baud rates and report which one actually
+  // yields AIS sentences. Garbled output means the rate is wrong, and guessing
+  // one at a time in the field is slow.
+  const scanBauds = async () => {
+    const rates = [38400, 4800, 9600, 57600, 115200];
+    console.log(`Scanning baud rates on ${CFG.serialPort} (about 6s each)…\n`);
+    let best = null;
+    for (const rate of rates) {
+      // eslint-disable-next-line no-await-in-loop
+      const hits = await new Promise((resolve) => {
+        let p;
+        try {
+          p = new SerialPort({ path: CFG.serialPort, baudRate: rate }, (err) => {
+            if (err) { console.log(`  ${String(rate).padStart(6)} : cannot open (${err.message})`); resolve(-1); }
+          });
+        } catch (e) {
+          console.log(`  ${String(rate).padStart(6)} : ${e.message}`);
+          return resolve(-1);
+        }
+        let bytes = 0; let ais = 0;
+        p.on('error', () => {});
+        p.on('data', (d) => { bytes += d.length; });
+        p.pipe(new ReadlineParser({ delimiter: '\n' })).on('data', (l) => {
+          if (AIS_RE.test(String(l).trim())) ais += 1;
+        });
+        setTimeout(() => {
+          console.log(`  ${String(rate).padStart(6)} : ${String(bytes).padStart(6)} bytes, ${ais} AIS sentences${ais ? '   <-- THIS ONE' : ''}`);
+          try { p.close(() => resolve(ais)); } catch { resolve(ais); }
+        }, 6000);
+      });
+      if (hits > 0) { best = rate; break; }
+    }
+    if (best) {
+      console.log(`\nFound it. Restart with:  --baud ${best}\n`);
+    } else {
+      console.log('\nNo AIS sentences at any standard rate. Check the receiver is outputting NMEA,');
+      console.log('and that no other program (vendor software / AIS Dispatcher) is holding the port.\n');
+    }
+    process.exit(0);
+  };
+  if (CFG.scan) { scanBauds(); return; }
+
   let port = null;
   const open = () => {
     port = new SerialPort({ path: CFG.serialPort, baudRate: CFG.baud }, (err) => {
